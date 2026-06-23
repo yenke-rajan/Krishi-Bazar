@@ -1,0 +1,629 @@
+Extend the existing KrishiBazar codebase. Do NOT rebuild what already exists.
+Add the following features across Farmer, Wholesaler, and Admin modules.
+Read all existing files before writing anything.
+
+═══════════════════════════════════
+PART A — SHARED UTILITY: BS CALENDAR
+═══════════════════════════════════
+Create client/src/lib/bs-calendar.ts with this exact content:
+
+const BS_MONTHS_EN = ['Baishakh','Jestha','Asar','Shrawan','Bhadra',
+  'Ashwin','Kartik','Mangsir','Poush','Magh','Falgun','Chaitra'];
+const BS_MONTHS_NP = ['बैशाख','जेठ','असार','श्रावण','भाद्र',
+  'आश्विन','कार्तिक','मंसिर','पौष','माघ','फाल्गुन','चैत्र'];
+const BS_DAYS_EN = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const BS_DAYS_NP = ['आइत','सोम','मंगल','बुध','बिही','शुक्र','शनि'];
+
+// Verified BS month-length lookup table for 2080–2086
+const BS_YEAR_DATA: Record<number, number[]> = {
+  2080: [31,32,31,32,31,30,30,30,29,29,30,30],
+  2081: [31,31,32,32,31,30,30,29,30,29,30,30],
+  2082: [31,31,32,32,31,30,30,29,30,29,30,30],
+  2083: [31,32,31,32,31,30,30,30,29,29,30,31],
+  2084: [30,32,31,32,31,30,30,30,29,30,29,31],
+  2085: [31,31,32,31,31,31,30,29,30,29,30,30],
+  2086: [31,31,32,32,31,30,30,29,30,29,30,30],
+};
+
+// Reference anchor: BS 2081 Baishakh 1 = AD April 13 2024
+const REF_AD = new Date(2024, 3, 13);
+const REF_BS = { year: 2081, month: 0, day: 1 };
+
+export interface BSDate {
+  adDate: Date;
+  year: number;
+  month: number; // 0-indexed
+  day: number;
+  monthNameEn: string;
+  monthNameNp: string;
+  dayNameEn: string;
+  dayNameNp: string;
+  dateStringBS: string; // "2081-03-15"
+}
+
+function adToBS(adDate: Date): Omit<BSDate, 'adDate' | 'dayNameEn' | 'dayNameNp'> {
+  const msPerDay = 86400000;
+  const daysDiff = Math.round(
+    (new Date(adDate.getFullYear(), adDate.getMonth(), adDate.getDate()).getTime()
+     - REF_AD.getTime()) / msPerDay
+  );
+  let { year, month, day } = { ...REF_BS };
+  let rem = daysDiff;
+
+  if (rem >= 0) {
+    while (rem > 0) {
+      const daysInMonth = BS_YEAR_DATA[year]?.[month] ?? 30;
+      const left = daysInMonth - day + 1;
+      if (rem < left) { day += rem; rem = 0; }
+      else { rem -= left; day = 1; month++; if (month >= 12) { month = 0; year++; } }
+    }
+  } else {
+    rem = Math.abs(rem);
+    while (rem > 0) {
+      if (rem < day) { day -= rem; rem = 0; }
+      else { rem -= day; month--; if (month < 0) { month = 11; year--; }
+             day = BS_YEAR_DATA[year]?.[month] ?? 30; }
+    }
+  }
+  return {
+    year, month, day,
+    monthNameEn: BS_MONTHS_EN[month],
+    monthNameNp: BS_MONTHS_NP[month],
+    dateStringBS: `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,
+  };
+}
+
+export function get7DayBSWindow(): BSDate[] {
+  const today = new Date();
+  return Array.from({ length: 7 }, (_, i) => {
+    const adDate = new Date(today);
+    adDate.setDate(today.getDate() + i);
+    const bs = adToBS(adDate);
+    return {
+      adDate,
+      ...bs,
+      dayNameEn: BS_DAYS_EN[adDate.getDay()],
+      dayNameNp: BS_DAYS_NP[adDate.getDay()],
+    };
+  });
+}
+
+export function formatBSDate(dateStr: string, lang: 'en' | 'np'): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const mIdx = month - 1;
+  const mName = lang === 'np' ? BS_MONTHS_NP[mIdx] : BS_MONTHS_EN[mIdx];
+  return lang === 'np'
+    ? `${mName} ${day}, ${year}`
+    : `${mName} ${day}, ${year} BS`;
+}
+
+═══════════════════════════════════
+PART B — SHARED COMPONENT: BSDatePicker
+═══════════════════════════════════
+Create client/src/components/ui/BSDatePicker.tsx
+
+Props:
+  selectedDate: string | null  (dateStringBS format "2081-03-15")
+  onSelect: (dateStr: string) => void
+  lang: 'en' | 'np'
+
+Renders a horizontal scrollable row of 7 date chips.
+Each chip shows:
+  - Day name (short): dayNameNp if lang=np else dayNameEn  — 11px muted
+  - Day number: bs.day — 18px bold kb-text
+  - Month name (short, 3 chars): — 11px muted
+
+Selected chip: bg-kb-forest text-white rounded-card shadow-card
+               border-2 border-kb-forest scale-105 transition-transform
+Today chip (index 0): shows a small marigold dot below the day number
+Unselected: bg-white border border-kb-border rounded-card text-kb-text
+            hover:border-kb-forest/50 cursor-pointer
+
+Container: flex gap-2 overflow-x-auto pb-2 scrollbar-hide
+Each chip: min-w-[56px] flex flex-col items-center py-2 px-1
+
+Label above row:
+  "Select Date" / "मिति छान्नुहोस्" — 14px font-semibold kb-text mb-2
+
+═══════════════════════════════════
+PART C — SHARED COMPONENT: OrderTimeline
+═══════════════════════════════════
+Create client/src/components/ui/OrderTimeline.tsx
+
+Props:
+  status: string
+  layerType: 'SUPPLY' | 'DEMAND'
+  lang: 'en' | 'np'
+
+SUPPLY (Farmer) steps — 3 nodes:
+  1. ORDER_RECEIVED       EN:"Order Received"      NP:"अर्डर प्राप्त"
+  2. DISPATCHED_TO_COLLECT EN:"Coming to Pick Up"  NP:"सङ्कलन गर्न आउँदैछ"
+  3. COLLECTED            EN:"Picked Up"           NP:"सङ्कलन गरियो"
+
+DEMAND (Wholesaler) steps — 3 nodes:
+  1. ORDER_RECEIVED  EN:"Order Received"  NP:"अर्डर प्राप्त"
+  2. DISPATCHED      EN:"Dispatched"      NP:"पठाइयो"
+  3. DELIVERED       EN:"Delivered"       NP:"डेलिभर गरियो"
+
+Determine active step index from status string.
+
+Render a vertical timeline (not horizontal):
+  For each step, show:
+    - Circle node (24px): 
+        completed/active: bg-kb-forest with white checkmark (✓) or step number
+        upcoming: bg-white border-2 border-kb-border text-kb-muted
+    - Connecting line between nodes:
+        completed line: bg-kb-forest (2px wide, full height between nodes)
+        upcoming line: bg-kb-border
+    - Step label text (right of node): 
+        active step: font-semibold kb-text
+        completed: text-kb-success line-through opacity-70
+        upcoming: text-kb-muted
+
+Current active step: show a pulsing green dot animation
+
+═══════════════════════════════════
+PART D — ORDER ID UTILITY
+═══════════════════════════════════
+Add to client/src/lib/utils.ts:
+
+export function generateOrderId(layerType: 'SUPPLY' | 'DEMAND'): string {
+  const prefix = layerType === 'SUPPLY' ? 'KBF' : 'KBW';
+  const ts = Date.now().toString(36).toUpperCase().slice(-4);
+  const rand = Math.random().toString(36).toUpperCase().slice(2,6);
+  return `${prefix}-${ts}${rand}`;
+}
+
+Also add this server-side in the order creation route.
+
+═══════════════════════════════════
+PART E — BACKEND: NEW + UPDATED ENDPOINTS
+═══════════════════════════════════
+Add/update these API routes. Read existing route files first.
+
+--- Orders ---
+
+POST /api/orders
+  Auth: required (FARMER or WHOLESALER)
+  Body: { crop_id, weight_kg, target_date_bs, notes? }
+  Server generates:
+    id: uuidv4()
+    order_id: generateOrderId(layerType) — KBF-XXXX for FARMER, KBW-XXXX for WHOLESALER
+    client_id: from JWT
+    layer_type: 'SUPPLY' if user.role=FARMER, 'DEMAND' if WHOLESALER
+    status: 'ORDER_RECEIVED'
+  Returns 201: { order }
+
+GET /api/orders/my
+  Auth: required
+  Returns all orders for current user, joined with catalog (crop_name, crop_name_np, image_url)
+  Order by created_at DESC
+
+GET /api/orders/all
+  Auth: required, ADMIN only
+  Returns ALL orders joined with:
+    users table: full_name, phone, primary_address
+    catalog table: crop_name, crop_name_np
+  Each order row must include: order_id, full_name, phone, 
+    primary_address (as location), weight_kg, target_date_bs, 
+    layer_type, status, created_at
+  Order by created_at DESC
+
+PATCH /api/orders/:id/status
+  Auth: required, ADMIN only
+  Body: { status }
+  Valid statuses for SUPPLY: ORDER_RECEIVED, DISPATCHED_TO_COLLECT, COLLECTED
+  Valid statuses for DEMAND: ORDER_RECEIVED, DISPATCHED, DELIVERED
+  Returns 200: { order }
+
+--- Inventory ---
+
+GET /api/inventory/summary
+  Auth: required
+  Returns per crop_id: 
+    { crop_id, crop_name, crop_name_np, received_total, delivered_total, 
+      available_stock (received - delivered) }
+  Formula: available_stock = SUM(delta where type=RECEIVED) - SUM(delta where type=DELIVERED)
+  Join with catalog to get names
+
+POST /api/inventory
+  Auth: ADMIN only
+  Body: { crop_id, delta_quantity, tracking_type ('RECEIVED'|'DELIVERED'), notes? }
+  Returns 201: { entry }
+
+--- Users ---
+
+GET /api/users
+  Auth: ADMIN only
+  Returns all users (exclude password_hash), order by created_at DESC
+
+POST /api/users
+  Auth: ADMIN only
+  Body: { phone, password, full_name, email?, role, primary_address? }
+  Same validation as register. Role can be FARMER, WHOLESALER, or ADMIN.
+  Returns 201: { user }
+
+DELETE /api/users/:id
+  Auth: ADMIN only
+  Cannot delete yourself (compare id with JWT id)
+  Returns 200: { message: 'User deleted' }
+
+PATCH /api/users/:id/role
+  Auth: ADMIN only
+  Body: { role }
+  Returns 200: { user }
+
+═══════════════════════════════════
+PART F — FARMER MODULE UI
+═══════════════════════════════════
+Update the Farmer section of the app. 
+The Farmer's dashboard/home should have two tab sections:
+  Tab 1: "Place Order" / "अर्डर राख्नुहोस्"
+  Tab 2: "My Orders" / "मेरा अर्डर"
+
+TAB 1 — PLACE ORDER (Farmer creates a SUPPLY order):
+Step-by-step card layout (not a modal):
+
+STEP 1 — Select Produce:
+  Title: "What are you selling?" / "के बेच्दै हुनुहुन्छ?"
+  Fetch GET /api/catalog?category=VEGETABLE&available=true
+  Display as a 2-column grid of vegetable cards:
+    Each card: crop image (or green placeholder with first letter),
+               crop name (EN or NP based on lang),
+               selected state: kb-forest border + checkmark overlay
+  Only one selection at a time.
+
+STEP 2 — Enter Quantity:
+  "How many KGs?" / "कति के.जी.?"
+  Large numeric input, type=number, min=1, max=10000
+  Suffix label: "KG" / "के.जी." — shown inside/beside input
+  Helper: "Enter the weight of your produce in kilograms"
+
+STEP 3 — Select Pick-up Date:
+  "When will it be ready?" / "कहिले तयार हुन्छ?"
+  Use <BSDatePicker> component
+
+STEP 4 — Review & Confirm:
+  Summary card showing:
+    Produce name, Quantity, Pick-up date (BS format), 
+    Your location (from user.primary_address)
+  Large green "Place Order" / "अर्डर राख्नुहोस्" button
+  On submit: POST /api/orders
+  On success: show success screen with order_id prominently displayed:
+    "🎉 Order Placed!" / "अर्डर राखियो!"
+    Order ID: KBF-XXXX (in monospace font, large, copyable)
+    "View My Orders" button
+
+Navigation: "Next" / "अर्को" button between steps.
+            "Back" / "पछाडि" on step 2+.
+            Step indicator: dots or "Step 2 of 4" at top.
+
+TAB 2 — MY ORDERS (Farmer's order list):
+  Fetch GET /api/orders/my
+  Empty state: illustration + "No orders yet. Place your first order!"
+  
+  For each order, render a card:
+    TOP ROW: 
+      Order ID in monospace font (14px, kb-forest): "KBF-XXXX"
+      Status badge (color by status)
+    
+    MIDDLE ROW:
+      Crop name (bold) | Weight: X KG | Date: BS formatted
+    
+    BOTTOM: 
+      <OrderTimeline status={order.status} layerType="SUPPLY" lang={lang} />
+    
+    Card has subtle left border colored by current status:
+      ORDER_RECEIVED: border-kb-marigold
+      DISPATCHED_TO_COLLECT: border-blue-500
+      COLLECTED: border-kb-success
+
+═══════════════════════════════════
+PART G — WHOLESALER MODULE UI
+═══════════════════════════════════
+Same two-tab structure as Farmer:
+  Tab 1: "Place Order" / "अर्डर राख्नुहोस्"
+  Tab 2: "My Orders" / "मेरा अर्डर"
+
+TAB 1 — PLACE ORDER (Wholesaler creates a DEMAND order):
+
+STEP 1 — Select Item:
+  Title: "What do you need?" / "के चाहिन्छ?"
+  Fetch GET /api/catalog?available=true (includes VEGETABLE + PICKLE)
+  Category filter tabs at top: "All" | "Vegetables / तरकारी" | "Pickles / अचार"
+  Same 2-column grid card display as Farmer
+
+STEP 2 — Enter Quantity:
+  "How many KGs do you need?" / "कति के.जी. चाहिन्छ?"
+  Same numeric input with KG suffix
+
+STEP 3 — Select Delivery Date:
+  "When do you need delivery?" / "कहिले डेलिभरी चाहिन्छ?"
+  Use <BSDatePicker> component
+
+STEP 4 — Review & Confirm:
+  Summary card: Item, Quantity, Delivery Date, Drop-off Location
+  "Place Order" / "अर्डर राख्नुहोस्" button
+  On success: success screen with KBW-XXXX order ID
+
+TAB 2 — MY ORDERS (Wholesaler order list):
+  Same structure as Farmer orders but:
+    Order ID format: KBW-XXXX
+    Use layerType="DEMAND" for <OrderTimeline>
+    Status colors:
+      ORDER_RECEIVED: border-kb-marigold
+      DISPATCHED: border-blue-500
+      DELIVERED: border-kb-success
+
+═══════════════════════════════════
+PART H — ADMIN MODULE (FULL REBUILD)
+═══════════════════════════════════
+The Admin panel should be a full-width desktop-optimized layout.
+Use a left sidebar navigation (240px wide, dark kb-deep background):
+  Logo + "Admin Panel" / "प्रशासक" at top
+  Nav items with icons:
+    📊 Dashboard     /admin
+    📦 Orders        /admin/orders
+    📋 Inventory     /admin/inventory
+    👥 Users         /admin/users
+    🌿 Catalog       /admin/catalog  (already exists, keep it)
+  Bottom: current admin name + Logout button
+  Language toggle at bottom of sidebar
+
+--- /admin (Dashboard) ---
+4 summary stat cards in a row:
+  Total Active Orders (SUPPLY + DEMAND combined, excluding COLLECTED/DELIVERED)
+  Total Farmers (count of FARMER role users)
+  Total Wholesalers (count of WHOLESALER role users)
+  Total Catalog Items
+
+Below stats: 2-column grid:
+  LEFT: "Recent Orders" — last 5 orders (any type), 
+        each showing order_id, user name, status badge, created time
+  RIGHT: "Stock Summary" — inventory levels from GET /api/inventory/summary
+         Table: Crop Name | Received | Delivered | Available Stock
+         Highlight rows where available_stock < 10 in yellow warning bg
+
+--- /admin/orders (Order Management) ---
+Full-width table with two sections via toggle tabs:
+  Tab 1: "Farmer Orders (Supply)" | Tab 2: "Wholesaler Orders (Demand)"
+
+Table columns (ALL must be visible):
+  Order ID | Farmer/Wholesaler Name | Phone | Location | 
+  Crop | Quantity (KG) | Target Date (BS) | Status | Actions
+
+For each row in the Status column:
+  Show current status as a colored badge
+  
+For Actions column:
+  A dropdown select showing valid next statuses:
+    SUPPLY orders: ORDER_RECEIVED → DISPATCHED_TO_COLLECT → COLLECTED
+    DEMAND orders: ORDER_RECEIVED → DISPATCHED → DELIVERED
+  The dropdown currently shows the current status, options are all valid statuses.
+  On change: immediately call PATCH /api/orders/:id/status
+  Show a small spinner on the row while updating, then refresh the row
+  Show a green toast "Status updated" on success
+
+Table features:
+  Search bar (filters by name, phone, or order ID client-side)
+  Sort by date (newest first default)
+  Empty state per tab
+
+--- /admin/inventory (Inventory Management) ---
+Split layout:
+  LEFT (40%): "Log Stock Receipt" form:
+    Select crop (dropdown from catalog)
+    Quantity (KG) input
+    Type: Radio buttons — "Received" (green) / "Delivered" (red)
+    Notes (optional textarea)
+    Submit button → POST /api/inventory
+    On success: refresh summary table + show toast
+
+  RIGHT (60%): Stock Summary table:
+    Columns: Crop | Total Received (KG) | Total Delivered (KG) | Available Stock (KG)
+    Available Stock formula: Received − Delivered
+    Color coding: 
+      > 50 KG: text-kb-success
+      10–50 KG: text-kb-warning  
+      < 10 KG: text-kb-error (+ ⚠️ icon)
+
+--- /admin/users (User Management) ---
+Split layout:
+  TOP: "Add New User" form (collapsible, collapsed by default):
+    Full Name, Phone, Password, Role (FARMER/WHOLESALER/ADMIN dropdown), 
+    Email (optional), Location (optional)
+    Submit → POST /api/users
+    On success: refresh table + show toast
+
+  BOTTOM: Users table:
+    Columns: Name | Phone | Role | Location | Joined Date | Actions
+    Role column: Badge component (FARMER=green, WHOLESALER=orange, ADMIN=indigo)
+    Actions: 
+      Role change dropdown (only show if not current user)
+      Delete button (red, with confirmation dialog — "Are you sure? 
+                     This cannot be undone.")
+      Cannot delete yourself — show disabled delete with tooltip
+    Search bar: filter by name or phone
+    Row count indicator: "Showing X users"
+
+═══════════════════════════════════
+PART I — ROUTING UPDATES
+═══════════════════════════════════
+Update App.tsx routing:
+
+/farmer → FarmerDashboard (ProtectedRoute, FARMER role)
+/wholesaler → WholesalerDashboard (ProtectedRoute, WHOLESALER role)
+/admin → AdminDashboard (ProtectedRoute, ADMIN role)
+/admin/orders → AdminOrders (ProtectedRoute, ADMIN role)
+/admin/inventory → AdminInventory (ProtectedRoute, ADMIN role)
+/admin/users → AdminUsers (ProtectedRoute, ADMIN role)
+/admin/catalog → AdminCatalog (ProtectedRoute, ADMIN role)
+
+After login, redirect based on role:
+  FARMER → /farmer
+  WHOLESALER → /wholesaler
+  ADMIN → /admin
+
+Add a mobile bottom navigation bar for FARMER and WHOLESALER roles:
+  4 tabs: Home | Place Order | My Orders | Profile
+  Active tab: kb-forest icon + label, underline indicator
+  Inactive: kb-muted
+
+═══════════════════════════════════
+PART J — I18n ADDITIONS
+═══════════════════════════════════
+Add these keys to BOTH en.json and np.json:
+
+en.json additions:
+"orders": {
+  "placeOrder": "Place Order",
+  "myOrders": "My Orders",
+  "whatAreSelling": "What are you selling?",
+  "whatDoYouNeed": "What do you need?",
+  "selectProduce": "Select Produce",
+  "enterQuantity": "Enter Quantity",
+  "selectDate": "Select Date",
+  "reviewOrder": "Review & Confirm",
+  "howManyKg": "How many KGs?",
+  "whenReady": "When will it be ready?",
+  "whenDelivery": "When do you need delivery?",
+  "pickupDate": "Pick-up Date",
+  "deliveryDate": "Delivery Date",
+  "yourLocation": "Your Location",
+  "orderPlaced": "Order Placed!",
+  "orderIdLabel": "Your Order ID",
+  "viewMyOrders": "View My Orders",
+  "noOrders": "No orders yet",
+  "noOrdersHint": "Your orders will appear here",
+  "stepOf": "Step {{current}} of {{total}}",
+  "next": "Next",
+  "back": "Back",
+  "confirm": "Confirm Order",
+  "quantity": "Quantity",
+  "crop": "Produce",
+  "targetDate": "Date",
+  "location": "Location",
+  "allCategories": "All",
+  "vegetables": "Vegetables",
+  "pickles": "Pickles"
+},
+"admin": {
+  "dashboard": "Dashboard",
+  "orders": "Orders",
+  "inventory": "Inventory",
+  "users": "Users",
+  "catalog": "Catalog",
+  "farmerOrders": "Farmer Orders (Supply)",
+  "wholesalerOrders": "Wholesaler Orders (Demand)",
+  "statusUpdated": "Status updated",
+  "addUser": "Add New User",
+  "deleteUser": "Delete User",
+  "confirmDelete": "Are you sure? This cannot be undone.",
+  "cannotDeleteSelf": "You cannot delete your own account",
+  "stockSummary": "Stock Summary",
+  "logReceipt": "Log Stock Receipt",
+  "received": "Received",
+  "delivered": "Delivered",
+  "available": "Available Stock",
+  "totalFarmers": "Total Farmers",
+  "totalWholesalers": "Total Wholesalers",
+  "activeOrders": "Active Orders",
+  "totalCatalog": "Catalog Items",
+  "recentOrders": "Recent Orders",
+  "lowStock": "Low Stock"
+},
+"status": {
+  "ORDER_RECEIVED": "Order Received",
+  "DISPATCHED_TO_COLLECT": "Coming to Pick Up",
+  "COLLECTED": "Picked Up",
+  "DISPATCHED": "Dispatched",
+  "DELIVERED": "Delivered"
+}
+
+np.json additions (same keys, Nepali values):
+"orders": {
+  "placeOrder": "अर्डर राख्नुहोस्",
+  "myOrders": "मेरा अर्डर",
+  "whatAreSelling": "के बेच्दै हुनुहुन्छ?",
+  "whatDoYouNeed": "के चाहिन्छ?",
+  "selectProduce": "उपज छान्नुहोस्",
+  "enterQuantity": "परिमाण प्रविष्ट गर्नुहोस्",
+  "selectDate": "मिति छान्नुहोस्",
+  "reviewOrder": "समीक्षा र पुष्टि",
+  "howManyKg": "कति के.जी.?",
+  "whenReady": "कहिले तयार हुन्छ?",
+  "whenDelivery": "कहिले डेलिभरी चाहिन्छ?",
+  "pickupDate": "पिक-अप मिति",
+  "deliveryDate": "डेलिभरी मिति",
+  "yourLocation": "तपाईंको ठेगाना",
+  "orderPlaced": "अर्डर राखियो!",
+  "orderIdLabel": "तपाईंको अर्डर आईडी",
+  "viewMyOrders": "मेरा अर्डर हेर्नुहोस्",
+  "noOrders": "अहिलेसम्म कुनै अर्डर छैन",
+  "noOrdersHint": "तपाईंका अर्डरहरू यहाँ देखिनेछन्",
+  "stepOf": "चरण {{current}} / {{total}}",
+  "next": "अर्को",
+  "back": "पछाडि",
+  "confirm": "अर्डर पुष्टि गर्नुहोस्",
+  "quantity": "परिमाण",
+  "crop": "उपज",
+  "targetDate": "मिति",
+  "location": "ठेगाना",
+  "allCategories": "सबै",
+  "vegetables": "तरकारी",
+  "pickles": "अचार"
+},
+"admin": {
+  "dashboard": "ड्यासबोर्ड",
+  "orders": "अर्डरहरू",
+  "inventory": "भण्डार",
+  "users": "प्रयोगकर्ता",
+  "catalog": "सूची",
+  "farmerOrders": "किसान अर्डर (आपूर्ति)",
+  "wholesalerOrders": "थोक अर्डर (माग)",
+  "statusUpdated": "स्थिति अपडेट गरियो",
+  "addUser": "नयाँ प्रयोगकर्ता थप्नुहोस्",
+  "deleteUser": "प्रयोगकर्ता मेट्नुहोस्",
+  "confirmDelete": "के तपाईं निश्चित हुनुहुन्छ? यो पूर्ववत् गर्न सकिँदैन।",
+  "cannotDeleteSelf": "तपाईं आफ्नै खाता मेट्न सक्नुहुन्न",
+  "stockSummary": "स्टक सारांश",
+  "logReceipt": "स्टक रसिद लग गर्नुहोस्",
+  "received": "प्राप्त",
+  "delivered": "डेलिभर",
+  "available": "उपलब्ध स्टक",
+  "totalFarmers": "कुल किसान",
+  "totalWholesalers": "कुल थोक व्यापारी",
+  "activeOrders": "सक्रिय अर्डर",
+  "totalCatalog": "सूची वस्तुहरू",
+  "recentOrders": "भर्खरका अर्डर",
+  "lowStock": "कम स्टक"
+},
+"status": {
+  "ORDER_RECEIVED": "अर्डर प्राप्त",
+  "DISPATCHED_TO_COLLECT": "सङ्कलन गर्न आउँदैछ",
+  "COLLECTED": "सङ्कलन गरियो",
+  "DISPATCHED": "पठाइयो",
+  "DELIVERED": "डेलिभर गरियो"
+}
+
+═══════════════════════════════════
+DESIGN CONSISTENCY RULES
+═══════════════════════════════════
+1. Farmer and Wholesaler views must be fully responsive — 
+   optimized for 375px–430px mobile widths
+2. Admin views must be optimized for 1024px+ desktop widths — 
+   hide sidebar nav below 768px and show a top hamburger menu instead
+3. All status badges must use these consistent colors:
+   ORDER_RECEIVED: bg-amber-50 text-amber-700 border-amber-200
+   DISPATCHED_TO_COLLECT / DISPATCHED: bg-blue-50 text-blue-700 border-blue-200
+   COLLECTED / DELIVERED: bg-green-50 text-green-700 border-green-200
+4. All data tables must have zebra striping: 
+   even rows bg-kb-cream/50, odd rows bg-white
+5. Toast notifications: appear top-right, auto-dismiss after 3s,
+   green for success, red for error, amber for warning
+6. Order ID must always render in font-mono (monospace) so it 
+   looks like a reference code — e.g. "KBF-K3X8MA2P"
+7. All numeric inputs for KG must reject negative values and 
+   non-numeric input. Show "KG" unit label always.
+8. Loading states: skeleton loaders for tables/lists, 
+   spinner inside buttons during API calls

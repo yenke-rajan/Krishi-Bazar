@@ -22,8 +22,10 @@ export default function LoginPage() {
     if (user && !authLoading) {
       if (user.role === 'ADMIN') {
         setLocation('/admin');
+      } else if (user.role === 'FARMER') {
+        setLocation('/farmer');
       } else {
-        setLocation('/dashboard');
+        setLocation('/wholesaler');
       }
     }
   }, [user, authLoading, setLocation]);

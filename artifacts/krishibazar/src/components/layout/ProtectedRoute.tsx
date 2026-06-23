@@ -18,7 +18,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
       if (!user) {
         setLocation('/');
       } else if (allowedRoles && !allowedRoles.includes(user.role)) {
-        setLocation('/dashboard');
+        if (user.role === 'ADMIN') setLocation('/admin');
+        else if (user.role === 'FARMER') setLocation('/farmer');
+        else setLocation('/wholesaler');
       }
     }
   }, [user, loading, allowedRoles, setLocation]);
