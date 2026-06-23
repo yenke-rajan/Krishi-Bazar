@@ -1,0 +1,72 @@
+{
+  "app": {
+    "name": "कृषिबजार",
+    "tagline": "नेपालको ताजा उपज बजार",
+    "subtitle": "किसान र थोक व्यापारीलाई जोड्दै"
+  },
+  "auth": {
+    "login": "लगइन",
+    "register": "दर्ता",
+    "phone": "फोन नम्बर",
+    "password": "पासवर्ड",
+    "fullName": "पूरा नाम",
+    "email": "इमेल ठेगाना",
+    "emailOptional": "इमेल ठेगाना (वैकल्पिक)",
+    "pickupLocation": "पिक-अप ठेगाना",
+    "dropoffLocation": "ड्रप-अफ ठेगाना",
+    "confirmPassword": "पासवर्ड पुष्टि गर्नुहोस्",
+    "loginTitle": "फेरि स्वागत छ",
+    "loginSubtitle": "आफ्नो खातामा साइन इन गर्नुहोस्",
+    "registerTitle": "खाता बनाउनुहोस्",
+    "registerSubtitle": "कृषिबजार नेटवर्कमा सामेल हुनुहोस्",
+    "noAccount": "खाता छैन?",
+    "haveAccount": "पहिले नै खाता छ?",
+    "signUp": "साइन अप",
+    "signIn": "साइन इन",
+    "selectRole": "म हुँ एक...",
+    "roleHint": "तपाईं कृषिबजार कसरी प्रयोग गर्नुहुन्छ?",
+    "farmer": "किसान",
+    "farmerDesc": "म उपज उगाउँछु र बेच्छु",
+    "wholesaler": "थोक व्यापारी",
+    "wholesalerDesc": "म थोकमा खरिद गर्छु",
+    "continue": "जारी राख्नुहोस्"
+  },
+  "nav": {
+    "home": "गृहपृष्ठ",
+    "orders": "मेरा अर्डर",
+    "catalog": "सूची",
+    "profile": "प्रोफाइल",
+    "logout": "लगआउट"
+  },
+  "dashboard": {
+    "welcome": "स्वागत छ",
+    "roleLabel": "रूपमा लगइन गरियो",
+    "farmerWelcome": "आज आफ्नो उपज सूचीबद्ध गर्न तयार?",
+    "wholesalerWelcome": "आफ्नो अर्डर राख्न तयार?",
+    "adminWelcome": "कमाण्ड सेन्टर लोड हुँदैछ..."
+  },
+  "errors": {
+    "required": "यो क्षेत्र आवश्यक छ",
+    "invalidPhone": "मान्य १०-अंकको नेपाल नम्बर प्रविष्ट गर्नुहोस् (९७x/९८x)",
+    "passwordMismatch": "पासवर्डहरू मेल खाँदैनन्",
+    "passwordLength": "कम्तीमा ६ अक्षर आवश्यक छ",
+    "loginFailed": "गलत फोन नम्बर वा पासवर्ड",
+    "registerFailed": "दर्ता असफल भयो। पुनः प्रयास गर्नुहोस्।",
+    "serverError": "सर्भर त्रुटि। पुनः प्रयास गर्नुहोस्।"
+  },
+  "common": {
+    "loading": "लोड हुँदैछ...",
+    "submit": "पेश गर्नुहोस्",
+    "cancel": "रद्द गर्नुहोस्",
+    "save": "सुरक्षित गर्नुहोस्",
+    "kg": "के.जी.",
+    "status": "स्थिति",
+    "date": "मिति",
+    "orderId": "अर्डर आईडी"
+  },
+  "roles": {
+    "FARMER": "किसान",
+    "WHOLESALER": "थोक व्यापारी",
+    "ADMIN": "प्रशासक"
+  }
+}

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "KrishiBazar"
+version = "1.0.0"
+id = "artifacts/krishibazar"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23071
+
+[services.development]
+run = "pnpm --filter @workspace/krishibazar run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/krishibazar", "run", "build" ]
+publicDir = "artifacts/krishibazar/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23071"
+BASE_PATH = "/"

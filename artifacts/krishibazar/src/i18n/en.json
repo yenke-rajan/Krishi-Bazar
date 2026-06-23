@@ -1,0 +1,72 @@
+{
+  "app": {
+    "name": "KrishiBazar",
+    "tagline": "Nepal's Fresh Produce Marketplace",
+    "subtitle": "Connecting Farmers & Wholesalers"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "phone": "Phone Number",
+    "password": "Password",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "emailOptional": "Email Address (Optional)",
+    "pickupLocation": "Pick-up Location",
+    "dropoffLocation": "Drop-off Location",
+    "confirmPassword": "Confirm Password",
+    "loginTitle": "Welcome Back",
+    "loginSubtitle": "Sign in to your account",
+    "registerTitle": "Create Account",
+    "registerSubtitle": "Join the KrishiBazar network",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "signUp": "Sign Up",
+    "signIn": "Sign In",
+    "selectRole": "I am a...",
+    "roleHint": "Choose how you will use KrishiBazar",
+    "farmer": "Farmer",
+    "farmerDesc": "I grow & sell produce",
+    "wholesaler": "Wholesaler",
+    "wholesalerDesc": "I purchase in bulk",
+    "continue": "Continue"
+  },
+  "nav": {
+    "home": "Home",
+    "orders": "My Orders",
+    "catalog": "Catalog",
+    "profile": "Profile",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "welcome": "Welcome",
+    "roleLabel": "Logged in as",
+    "farmerWelcome": "Ready to list your produce today?",
+    "wholesalerWelcome": "Ready to place your orders?",
+    "adminWelcome": "Command Center is loading..."
+  },
+  "errors": {
+    "required": "This field is required",
+    "invalidPhone": "Enter a valid 10-digit Nepal number (97x/98x)",
+    "passwordMismatch": "Passwords do not match",
+    "passwordLength": "Minimum 6 characters required",
+    "loginFailed": "Incorrect phone number or password",
+    "registerFailed": "Registration failed. Please try again.",
+    "serverError": "Server error. Please try again."
+  },
+  "common": {
+    "loading": "Loading...",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "kg": "KG",
+    "status": "Status",
+    "date": "Date",
+    "orderId": "Order ID"
+  },
+  "roles": {
+    "FARMER": "Farmer",
+    "WHOLESALER": "Wholesaler",
+    "ADMIN": "Admin"
+  }
+}

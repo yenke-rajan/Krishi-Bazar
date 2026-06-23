@@ -1,0 +1,22 @@
+### DETAILED APPLICATION SPECIFICATIONS
+
+1. GLOBAL STATE & LOCALIZATION
+- The platform must feature a clear toggle to switch instantly between English and Nepali languages across all screens and dashboards.
+- Universal Authentication: Registration and Login must happen via Phone Number and Password for mobile users.
+- User profiles must collect and store: Full Name, Phone Number, Email, and Location (explicitly designated as "Pick-up Location" for Farmers and "Drop-off Location" for Wholesalers).
+
+2. FARMER (SELLER) MODULE - MOBILE PROFILE
+- Product Selection: A simple, visual interface to select vegetables from a dynamically managed pool. Forms must accept Quantity strictly in Kilograms (KGs).
+- Pick-up Date Selector: A clean, 7-day rolling window based on the Nepali Calendar (Bikram Sambat - BS). It should display a simple horizontal row or list showing only the upcoming week's day numbers/names in the selected language.
+- Order Tracking System: A progressive timeline tracker displaying three native transactional states: [Order Received] -> [Dispatched to Collect] -> [Collected].
+
+3. WHOLESALER (BUYER) MODULE - MOBILE PROFILE
+- Demand Placement: An interface to choose vegetables or custom pickles, entering the exact volume required in KGs.
+- Delivery Date Selector: A clean, 7-day rolling window based on the Nepali Calendar (Bikram Sambat - BS), allowing them to mark exactly when they need the shipment delivered.
+- Order Tracking System: A progressive timeline tracker showing three buyer states: [Order Received] -> [Dispatched] -> [Delivered].
+
+4. ADMINISTRATIVE COMMAND CENTER - DESKTOP WEB PROFILE (Using `.web.tsx`)
+- Master Order Streams: A dense, side-by-side split grid separating "Active Buy Orders" and "Active Sell Orders". Each row must cleanly display the User's Name, Phone Number, Location, and a clearly generated unique Order ID.
+- Status Modification: Direct dropdown or button controls on each order row allowing the Admin to change statuses, which dynamically updates the respective Farmer or Wholesaler timeline in real time.
+- Catalog & Asset Manager: An explicit configuration form to add new vegetable/pickle records into the system (Name input and an Image attachment uploader/handler) so options immediately update for mobile users.
+- Inventory & Stock Audit Matrix: An internal bookkeeping view where the Admin manually enters items received at the warehouse to log current inventory quantities, alongside a clean data list displaying overall "Current Stock Levels" for all catalog items.

@@ -3,13 +3,22 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: KrishiBazar Agritech Marketplace API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: catalog
+    description: Crop catalog operations
+  - name: orders
+    description: Order operations
+  - name: inventory
+    description: Inventory ledger operations
+
 paths:
   /healthz:
     get:
@@ -24,7 +33,296 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRegistration"
+      responses:
+        "201":
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone already registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with phone and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserLogin"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /catalog:
+    get:
+      operationId: getCatalog
+      tags: [catalog]
+      summary: List all catalog items
+      responses:
+        "200":
+          description: List of catalog items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CatalogItem"
+    post:
+      operationId: createCatalogItem
+      tags: [catalog]
+      summary: Create a new catalog item (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogItemInput"
+      responses:
+        "201":
+          description: Catalog item created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItem"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /catalog/{id}:
+    patch:
+      operationId: updateCatalogItem
+      tags: [catalog]
+      summary: Update a catalog item (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogItemUpdate"
+      responses:
+        "200":
+          description: Updated catalog item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CatalogItem"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders:
+    get:
+      operationId: getOrders
+      tags: [orders]
+      summary: List orders (own orders for users, all for admins)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrderWithDetails"
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Place a new order
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderInput"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orders/summary:
+    get:
+      operationId: getOrderSummary
+      tags: [orders]
+      summary: Get aggregated order summary stats
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Order summary statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSummary"
+
+  /orders/{id}/status:
+    patch:
+      operationId: updateOrderStatus
+      tags: [orders]
+      summary: Update order status (admin only)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderStatusUpdate"
+      responses:
+        "200":
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /inventory:
+    get:
+      operationId: getInventory
+      tags: [inventory]
+      summary: Get current stock levels per crop
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of stock levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StockLevel"
+    post:
+      operationId: logInventory
+      tags: [inventory]
+      summary: Log a stock movement (admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InventoryInput"
+      responses:
+        "201":
+          description: Inventory entry logged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryEntry"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +332,268 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    User:
+      type: object
+      required: [id, phone, full_name, role, created_at]
+      properties:
+        id:
+          type: string
+        phone:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: ["string", "null"]
+        role:
+          type: string
+          enum: [FARMER, WHOLESALER, ADMIN]
+        primary_address:
+          type: ["string", "null"]
+        created_at:
+          type: integer
+
+    AuthResponse:
+      type: object
+      required: [token, user]
+      properties:
+        token:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+
+    UserRegistration:
+      type: object
+      required: [phone, password, full_name, role]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+        full_name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [FARMER, WHOLESALER]
+        primary_address:
+          type: string
+
+    UserLogin:
+      type: object
+      required: [phone, password]
+      properties:
+        phone:
+          type: string
+        password:
+          type: string
+
+    CatalogItem:
+      type: object
+      required: [id, crop_name, crop_name_np, category, is_available, created_at]
+      properties:
+        id:
+          type: string
+        crop_name:
+          type: string
+        crop_name_np:
+          type: string
+        image_url:
+          type: ["string", "null"]
+        category:
+          type: string
+          enum: [VEGETABLE, PICKLE]
+        is_available:
+          type: boolean
+        created_at:
+          type: integer
+
+    CatalogItemInput:
+      type: object
+      required: [crop_name, crop_name_np, category]
+      properties:
+        crop_name:
+          type: string
+        crop_name_np:
+          type: string
+        image_url:
+          type: string
+        category:
+          type: string
+          enum: [VEGETABLE, PICKLE]
+
+    CatalogItemUpdate:
+      type: object
+      properties:
+        crop_name:
+          type: string
+        crop_name_np:
+          type: string
+        image_url:
+          type: string
+        category:
+          type: string
+          enum: [VEGETABLE, PICKLE]
+        is_available:
+          type: boolean
+
+    Order:
+      type: object
+      required: [id, order_id, client_id, crop_id, weight_kg, target_date_bs, layer_type, status, created_at]
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        client_id:
+          type: string
+        crop_id:
+          type: string
+        weight_kg:
+          type: number
+        target_date_bs:
+          type: string
+        layer_type:
+          type: string
+          enum: [SUPPLY, DEMAND]
+        status:
+          type: string
+          enum: [ORDER_RECEIVED, DISPATCHED_TO_COLLECT, COLLECTED, DISPATCHED, DELIVERED]
+        notes:
+          type: ["string", "null"]
+        created_at:
+          type: integer
+
+    OrderWithDetails:
+      type: object
+      required: [id, order_id, client_id, crop_id, weight_kg, target_date_bs, layer_type, status, created_at]
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        client_id:
+          type: string
+        crop_id:
+          type: string
+        weight_kg:
+          type: number
+        target_date_bs:
+          type: string
+        layer_type:
+          type: string
+          enum: [SUPPLY, DEMAND]
+        status:
+          type: string
+          enum: [ORDER_RECEIVED, DISPATCHED_TO_COLLECT, COLLECTED, DISPATCHED, DELIVERED]
+        notes:
+          type: ["string", "null"]
+        created_at:
+          type: integer
+        client_name:
+          type: ["string", "null"]
+        client_phone:
+          type: ["string", "null"]
+        client_address:
+          type: ["string", "null"]
+        crop_name:
+          type: ["string", "null"]
+        crop_name_np:
+          type: ["string", "null"]
+
+    OrderInput:
+      type: object
+      required: [crop_id, weight_kg, target_date_bs, layer_type]
+      properties:
+        crop_id:
+          type: string
+        weight_kg:
+          type: number
+        target_date_bs:
+          type: string
+        layer_type:
+          type: string
+          enum: [SUPPLY, DEMAND]
+        notes:
+          type: string
+
+    OrderStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ORDER_RECEIVED, DISPATCHED_TO_COLLECT, COLLECTED, DISPATCHED, DELIVERED]
+
+    OrderSummary:
+      type: object
+      required: [total_orders, supply_orders, demand_orders, order_received_count, active_count, completed_count]
+      properties:
+        total_orders:
+          type: integer
+        supply_orders:
+          type: integer
+        demand_orders:
+          type: integer
+        order_received_count:
+          type: integer
+        active_count:
+          type: integer
+        completed_count:
+          type: integer
+
+    InventoryEntry:
+      type: object
+      required: [id, crop_id, delta_quantity, tracking_type, recorded_at]
+      properties:
+        id:
+          type: string
+        crop_id:
+          type: string
+        delta_quantity:
+          type: number
+        tracking_type:
+          type: string
+          enum: [RECEIVED, DELIVERED]
+        recorded_at:
+          type: integer
+        notes:
+          type: ["string", "null"]
+
+    InventoryInput:
+      type: object
+      required: [crop_id, delta_quantity, tracking_type]
+      properties:
+        crop_id:
+          type: string
+        delta_quantity:
+          type: number
+        tracking_type:
+          type: string
+          enum: [RECEIVED, DELIVERED]
+        notes:
+          type: string
+
+    StockLevel:
+      type: object
+      required: [crop_id, crop_name, crop_name_np, category, available_kg]
+      properties:
+        crop_id:
+          type: string
+        crop_name:
+          type: string
+        crop_name_np:
+          type: string
+        category:
+          type: string
+          enum: [VEGETABLE, PICKLE]
+        available_kg:
+          type: number

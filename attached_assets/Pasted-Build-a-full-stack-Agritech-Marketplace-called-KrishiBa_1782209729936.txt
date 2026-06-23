@@ -1,0 +1,651 @@
+Build a full-stack Agritech Marketplace called "KrishiBazar" (कृषिबजार) for Nepal. 
+This is Phase 1 of 5. Build the complete core foundation: design system, 
+dual-language support, database schema, authentication backend, and 
+all auth UI screens.
+
+═══════════════════════════════════
+TECH STACK
+═══════════════════════════════════
+Frontend: React 18 + TypeScript, Vite 5, React Router DOM v6,
+          react-i18next + i18next, Lucide React, Axios
+Backend:  Node.js + Express.js, better-sqlite3, jsonwebtoken,
+          bcryptjs, cors, dotenv, uuid
+Root:     concurrently
+
+═══════════════════════════════════
+MONOREPO STRUCTURE
+═══════════════════════════════════
+krishibazar/
+├── client/          (Vite React app → port 5173)
+├── server/          (Express API → port 3001)
+└── package.json     (root with script: "dev": "concurrently 
+                      \"npm --prefix server run dev\" 
+                      \"npm --prefix client run dev\"")
+
+═══════════════════════════════════
+DESIGN SYSTEM — "KrishiBazar" BRAND
+═══════════════════════════════════
+CSS variables in client/src/index.css AND extend tailwind.config.js:
+
+Colors:
+  --kb-deep:       #0D3B2E   (deep midnight forest)
+  --kb-forest:     #2E7D52   (growth green)
+  --kb-leaf:       #52C47A   (fresh leaf)
+  --kb-marigold:   #F5A623   (Nepal marigold gold — signature accent)
+  --kb-cream:      #F4F8F0   (light field background)
+  --kb-surface:    #FFFFFF
+  --kb-text:       #1A2E1A
+  --kb-muted:      #6B8F71
+  --kb-border:     #C8DFC8
+  --kb-error:      #DC2626
+  --kb-warning:    #D97706
+  --kb-success:    #16A34A
+
+Tailwind config extras:
+  colors: { kb: { deep:'#0D3B2E', forest:'#2E7D52', leaf:'#52C47A',
+                  marigold:'#F5A623', cream:'#F4F8F0', surface:'#FFFFFF',
+                  text:'#1A2E1A', muted:'#6B8F71', border:'#C8DFC8',
+                  error:'#DC2626', success:'#16A34A' } }
+  borderRadius: { card:'16px', input:'10px', pill:'100px', sheet:'24px 24px 0 0' }
+  boxShadow:    { card:'0 4px 24px rgba(13,59,46,0.08)',
+                  hover:'0 8px 32px rgba(13,59,46,0.16)',
+                  input:'0 2px 8px rgba(0,0,0,0.05)' }
+  backgroundImage: { hero:'linear-gradient(145deg,#0D3B2E 0%,#2E7D52 60%,#52C47A 100%)',
+                     hero-dark:'linear-gradient(145deg,#091F18 0%,#0D3B2E 100%)' }
+
+Typography — add to client/index.html <head>:
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  Base font-family: 'Plus Jakarta Sans', 'Noto Sans Devanagari', sans-serif
+  Apply to html element in index.css
+
+Signature background pattern — create this SVG and use as 
+  data URL CSS background on auth hero sections:
+  Concentric oval/contour lines (topographic terraced field pattern) 
+  at 6% white opacity, centered, non-repeating, scale 200%.
+  SVG: 3-4 nested ellipses with stroke="#FFFFFF" stroke-opacity="0.06" 
+       fill="none" stroke-width="1", scaled large
+
+═══════════════════════════════════
+CLIENT FILE STRUCTURE
+═══════════════════════════════════
+client/src/
+├── components/
+│   ├── ui/
+│   │   ├── Button.tsx    
+│   │   ├── Input.tsx     
+│   │   ├── Card.tsx      
+│   │   ├── Badge.tsx     
+│   │   ├── Spinner.tsx   
+│   │   └── LanguageToggle.tsx
+│   └── layout/
+│       ├── AuthLayout.tsx  
+│       └── AppShell.tsx    
+├── context/
+│   ├── AuthContext.tsx     
+│   └── LanguageContext.tsx 
+├── i18n/
+│   ├── index.ts            
+│   ├── en.json             
+│   └── np.json             
+├── lib/
+│   ├── api.ts              
+│   └── utils.ts            
+├── pages/
+│   ├── auth/
+│   │   ├── LoginPage.tsx
+│   │   └── RegisterPage.tsx
+│   └── DashboardPage.tsx   
+├── types/
+│   └── index.ts            
+├── App.tsx                 
+└── main.tsx
+
+═══════════════════════════════════
+SERVER FILE STRUCTURE
+═══════════════════════════════════
+server/src/
+├── database/
+│   ├── db.ts        (SQLite singleton connection)
+│   ├── schema.ts    (CREATE TABLE statements)
+│   └── seed.ts      (vegetables + admin user seed)
+├── middleware/
+│   └── auth.ts      (JWT verifyToken middleware)
+├── routes/
+│   └── auth.ts
+└── index.ts
+
+═══════════════════════════════════
+TYPESCRIPT TYPES (types/index.ts)
+═══════════════════════════════════
+export type Role = 'FARMER' | 'WHOLESALER' | 'ADMIN';
+export type OrderStatus = 'ORDER_RECEIVED' | 'DISPATCHED_TO_COLLECT' | 
+                          'COLLECTED' | 'DISPATCHED' | 'DELIVERED';
+export type LayerType = 'SUPPLY' | 'DEMAND';
+export type Category = 'VEGETABLE' | 'PICKLE';
+export type TrackingType = 'RECEIVED' | 'DELIVERED';
+
+export interface User {
+  id: string;
+  phone: string;
+  full_name: string;
+  email?: string;
+  role: Role;
+  primary_address?: string;
+  created_at: number;
+}
+
+export interface CatalogItem {
+  id: string;
+  crop_name: string;
+  crop_name_np: string;
+  image_url?: string;
+  category: Category;
+  is_available: boolean;
+  created_at: number;
+}
+
+export interface Order {
+  id: string;
+  order_id: string;
+  client_id: string;
+  crop_id: string;
+  weight_kg: number;
+  target_date_bs: string;
+  layer_type: LayerType;
+  status: OrderStatus;
+  notes?: string;
+  created_at: number;
+}
+
+export interface InventoryEntry {
+  id: string;
+  crop_id: string;
+  delta_quantity: number;
+  tracking_type: TrackingType;
+  recorded_at: number;
+  notes?: string;
+}
+
+export interface AuthResponse {
+  token: string;
+  user: User;
+}
+
+═══════════════════════════════════
+DATABASE SCHEMA
+═══════════════════════════════════
+Run on server startup (schema.ts):
+
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  phone TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT NOT NULL,
+  email TEXT,
+  role TEXT NOT NULL CHECK(role IN ('FARMER','WHOLESALER','ADMIN')),
+  primary_address TEXT,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS catalog (
+  id TEXT PRIMARY KEY,
+  crop_name TEXT NOT NULL,
+  crop_name_np TEXT NOT NULL,
+  image_url TEXT,
+  category TEXT NOT NULL CHECK(category IN ('VEGETABLE','PICKLE')),
+  is_available INTEGER DEFAULT 1,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  order_id TEXT UNIQUE NOT NULL,
+  client_id TEXT NOT NULL REFERENCES users(id),
+  crop_id TEXT NOT NULL REFERENCES catalog(id),
+  weight_kg REAL NOT NULL,
+  target_date_bs TEXT NOT NULL,
+  layer_type TEXT NOT NULL CHECK(layer_type IN ('SUPPLY','DEMAND')),
+  status TEXT NOT NULL DEFAULT 'ORDER_RECEIVED',
+  notes TEXT,
+  created_at INTEGER DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS inventory_ledger (
+  id TEXT PRIMARY KEY,
+  crop_id TEXT NOT NULL REFERENCES catalog(id),
+  delta_quantity REAL NOT NULL,
+  tracking_type TEXT NOT NULL CHECK(tracking_type IN ('RECEIVED','DELIVERED')),
+  recorded_at INTEGER DEFAULT (unixepoch()),
+  notes TEXT
+);
+
+Seed data (seed.ts) — insert only if catalog table is empty:
+Vegetables: Tomato/टमाटर, Potato/आलु, Onion/प्याज, Cabbage/बन्दा,
+            Cauliflower/फूलगोभी, Spinach/पालुंगो, Cucumber/काक्रो, Carrot/गाजर
+All category='VEGETABLE', is_available=1, id=uuidv4()
+
+Admin user (seed only if no ADMIN exists):
+  phone: '9800000000'
+  password: 'Admin@123' (bcrypt hash with saltRounds=10)
+  full_name: 'KrishiBazar Admin'
+  role: 'ADMIN'
+
+═══════════════════════════════════
+BACKEND AUTH ENDPOINTS
+═══════════════════════════════════
+Create .env in server/: JWT_SECRET=kb_secret_2026 | PORT=3001
+
+POST /api/auth/register
+  Body: { phone, password, full_name, email?, role, primary_address }
+  Validate: phone is 10 digits starting with 97 or 98
+             password min 6 chars
+             role must be FARMER or WHOLESALER (not ADMIN via registration)
+  Action: bcrypt.hash(password, 10), insert user with uuid id
+  Returns 201: { token, user }
+
+POST /api/auth/login
+  Body: { phone, password }
+  Action: find user by phone, bcrypt.compare, sign JWT {id, role, full_name}
+  Returns 200: { token, user }
+
+GET /api/auth/me
+  Header: Authorization: Bearer <token>
+  Middleware: verifyToken
+  Returns 200: { user }
+
+JWT: sign with JWT_SECRET, expiresIn: '7d'
+     payload: { id, role, full_name, phone }
+
+CORS: allow origin http://localhost:5173 in dev
+
+═══════════════════════════════════
+i18n TRANSLATIONS
+═══════════════════════════════════
+Initialize i18n in client/src/i18n/index.ts using i18next + 
+react-i18next with initReactI18next. Default language: 'en'.
+Load from imported en.json and np.json.
+
+en.json:
+{
+  "app": {
+    "name": "KrishiBazar",
+    "tagline": "Nepal's Fresh Produce Marketplace",
+    "subtitle": "Connecting Farmers & Wholesalers"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "phone": "Phone Number",
+    "password": "Password",
+    "fullName": "Full Name",
+    "email": "Email Address",
+    "emailOptional": "Email Address (Optional)",
+    "pickupLocation": "Pick-up Location",
+    "dropoffLocation": "Drop-off Location",
+    "confirmPassword": "Confirm Password",
+    "loginTitle": "Welcome Back",
+    "loginSubtitle": "Sign in to your account",
+    "registerTitle": "Create Account",
+    "registerSubtitle": "Join the KrishiBazar network",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "signUp": "Sign Up",
+    "signIn": "Sign In",
+    "selectRole": "I am a...",
+    "roleHint": "Choose how you will use KrishiBazar",
+    "farmer": "Farmer",
+    "farmerDesc": "I grow & sell produce",
+    "wholesaler": "Wholesaler",
+    "wholesalerDesc": "I purchase in bulk",
+    "continue": "Continue"
+  },
+  "nav": {
+    "home": "Home",
+    "orders": "My Orders",
+    "catalog": "Catalog",
+    "profile": "Profile",
+    "logout": "Logout"
+  },
+  "dashboard": {
+    "welcome": "Welcome",
+    "roleLabel": "Logged in as",
+    "farmerWelcome": "Ready to list your produce today?",
+    "wholesalerWelcome": "Ready to place your orders?",
+    "adminWelcome": "Command Center is loading..."
+  },
+  "errors": {
+    "required": "This field is required",
+    "invalidPhone": "Enter a valid 10-digit Nepal number (97x/98x)",
+    "passwordMismatch": "Passwords do not match",
+    "passwordLength": "Minimum 6 characters required",
+    "loginFailed": "Incorrect phone number or password",
+    "registerFailed": "Registration failed. Please try again.",
+    "serverError": "Server error. Please try again."
+  },
+  "common": {
+    "loading": "Loading...",
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "kg": "KG",
+    "status": "Status",
+    "date": "Date",
+    "orderId": "Order ID"
+  },
+  "roles": {
+    "FARMER": "Farmer",
+    "WHOLESALER": "Wholesaler",
+    "ADMIN": "Admin"
+  }
+}
+
+np.json (same structure, Nepali Devanagari values):
+{
+  "app": {
+    "name": "कृषिबजार",
+    "tagline": "नेपालको ताजा उपज बजार",
+    "subtitle": "किसान र थोक व्यापारीलाई जोड्दै"
+  },
+  "auth": {
+    "login": "लगइन",
+    "register": "दर्ता",
+    "phone": "फोन नम्बर",
+    "password": "पासवर्ड",
+    "fullName": "पूरा नाम",
+    "email": "इमेल ठेगाना",
+    "emailOptional": "इमेल ठेगाना (वैकल्पिक)",
+    "pickupLocation": "पिक-अप ठेगाना",
+    "dropoffLocation": "ड्रप-अफ ठेगाना",
+    "confirmPassword": "पासवर्ड पुष्टि गर्नुहोस्",
+    "loginTitle": "फेरि स्वागत छ",
+    "loginSubtitle": "आफ्नो खातामा साइन इन गर्नुहोस्",
+    "registerTitle": "खाता बनाउनुहोस्",
+    "registerSubtitle": "कृषिबजार नेटवर्कमा सामेल हुनुहोस्",
+    "noAccount": "खाता छैन?",
+    "haveAccount": "पहिले नै खाता छ?",
+    "signUp": "साइन अप",
+    "signIn": "साइन इन",
+    "selectRole": "म हुँ एक...",
+    "roleHint": "तपाईं कृषिबजार कसरी प्रयोग गर्नुहुन्छ?",
+    "farmer": "किसान",
+    "farmerDesc": "म उपज उगाउँछु र बेच्छु",
+    "wholesaler": "थोक व्यापारी",
+    "wholesalerDesc": "म थोकमा खरिद गर्छु",
+    "continue": "जारी राख्नुहोस्"
+  },
+  "nav": {
+    "home": "गृहपृष्ठ",
+    "orders": "मेरा अर्डर",
+    "catalog": "सूची",
+    "profile": "प्रोफाइल",
+    "logout": "लगआउट"
+  },
+  "dashboard": {
+    "welcome": "स्वागत छ",
+    "roleLabel": "रूपमा लगइन गरियो",
+    "farmerWelcome": "आज आफ्नो उपज सूचीबद्ध गर्न तयार?",
+    "wholesalerWelcome": "आफ्नो अर्डर राख्न तयार?",
+    "adminWelcome": "कमाण्ड सेन्टर लोड हुँदैछ..."
+  },
+  "errors": {
+    "required": "यो क्षेत्र आवश्यक छ",
+    "invalidPhone": "मान्य १०-अंकको नेपाल नम्बर प्रविष्ट गर्नुहोस् (९७x/९८x)",
+    "passwordMismatch": "पासवर्डहरू मेल खाँदैनन्",
+    "passwordLength": "कम्तीमा ६ अक्षर आवश्यक छ",
+    "loginFailed": "गलत फोन नम्बर वा पासवर्ड",
+    "registerFailed": "दर्ता असफल भयो। पुनः प्रयास गर्नुहोस्।",
+    "serverError": "सर्भर त्रुटि। पुनः प्रयास गर्नुहोस्।"
+  },
+  "common": {
+    "loading": "लोड हुँदैछ...",
+    "submit": "पेश गर्नुहोस्",
+    "cancel": "रद्द गर्नुहोस्",
+    "save": "सुरक्षित गर्नुहोस्",
+    "kg": "के.जी.",
+    "status": "स्थिति",
+    "date": "मिति",
+    "orderId": "अर्डर आईडी"
+  },
+  "roles": {
+    "FARMER": "किसान",
+    "WHOLESALER": "थोक व्यापारी",
+    "ADMIN": "प्रशासक"
+  }
+}
+
+═══════════════════════════════════
+UI COMPONENTS
+═══════════════════════════════════
+
+Button.tsx — props: variant, size, loading, icon, onClick, disabled
+  variant primary:   bg-gradient-to-r from-kb-deep to-kb-forest, 
+                     white text, hover:shadow-hover, active:scale-98
+  variant secondary: border-2 border-kb-forest, kb-forest text, 
+                     hover:bg-kb-forest/10
+  variant ghost:     transparent, kb-muted text
+  size lg:           h-12 px-6 text-base font-semibold rounded-pill
+  size md:           h-10 px-4 text-sm rounded-input
+  loading state:     show Spinner inside button, disable click
+
+Input.tsx — props: label, error, prefix (ReactNode), suffix (ReactNode), 
+            ...HTMLInputProps
+  Styling: rounded-input border border-kb-border focus:border-kb-forest 
+           focus:ring-2 focus:ring-kb-forest/20 bg-white px-4 py-3
+  Error state: border-kb-error, red helper text below
+  Prefix/suffix: absolute positioned inside input container
+
+Badge.tsx — props: role (Role type)
+  FARMER:     bg-kb-forest/10 text-kb-forest
+  WHOLESALER: bg-orange-50 text-orange-700
+  ADMIN:      bg-indigo-50 text-indigo-700
+  All: rounded-pill px-3 py-1 text-xs font-semibold
+
+LanguageToggle.tsx:
+  Pill container with two options: "EN" and "नेपाली"
+  Active side: white bg, kb-deep text, rounded-pill, shadow-sm
+  Inactive side: transparent, white/70 text
+  Animate with transition-all duration-200
+  On click: call i18n.changeLanguage(), save to localStorage('kb_lang')
+  Position: absolute top-4 right-4 in auth hero section
+
+═══════════════════════════════════
+AUTH LAYOUT COMPONENT (AuthLayout.tsx)
+═══════════════════════════════════
+Full viewport layout (h-screen, overflow-hidden):
+
+TOP HERO SECTION (h-[42vh] min-h-[260px]):
+  Background: bg-hero gradient
+  Background pattern: inline SVG (4 nested concentric ellipses, 
+    stroke white at 5% opacity, no fill, positioned center) as 
+    absolute positioned div behind content
+  Content (centered, z-10):
+    - KrishiBazar SVG logo: A simple leaf forming a K shape, 
+      white, 52px × 52px, with a small circle accent in marigold
+    - App name in Poppins 700 28px white: "KrishiBazar"
+    - Tagline in 13px white/75: from t('app.tagline')
+  LanguageToggle: absolute top-4 right-4
+
+BOTTOM SHEET SECTION:
+  White card with rounded-sheet (24px 24px 0 0) 
+  Overlaps hero by 32px (negative margin-top: -32px)
+  padding: px-6 pt-8 pb-6
+  min-h: calc(58vh + 32px)
+  overflow-y: auto
+  Small drag pill: w-10 h-1 bg-kb-border rounded-full mx-auto mb-6
+
+Props: children (the form content)
+
+═══════════════════════════════════
+LOGIN PAGE (pages/auth/LoginPage.tsx)
+═══════════════════════════════════
+Use AuthLayout. All text via useTranslation.
+
+Inside the white sheet:
+  Heading: t('auth.loginTitle') — Plus Jakarta Sans 700 24px kb-text
+  Subheading: t('auth.loginSubtitle') — 14px kb-muted, mb-8
+
+  Form (onSubmit calls login API):
+    Input: label=t('auth.phone'), type="tel", 
+           prefix=<span className="text-lg">🇳🇵</span>,
+           placeholder="98XXXXXXXX", maxLength=10
+    Input: label=t('auth.password'), type=password toggle,
+           suffix=eye icon button (Lucide Eye/EyeOff)
+    
+    Forgot password: small right-aligned text link, 
+                     greyed out, "(Coming soon)"
+    
+    Button (primary, lg, full width): 
+      t('auth.signIn'), loading state, icon=LogIn from Lucide
+    
+    Divider: thin hr with "or" text centered
+    
+    Link row: t('auth.noAccount') + space + 
+              <Link to="/register"> t('auth.signUp') </Link>
+              in kb-forest font-semibold
+
+Validation: 
+  - phone: must be 10 digits, starts with 97 or 98
+  - password: required
+  Show inline error below each input on submit attempt.
+
+On success: save token to localStorage('kb_token'), 
+            save user to AuthContext,
+            navigate: ADMIN → /admin, others → /dashboard
+
+═══════════════════════════════════
+REGISTER PAGE (pages/auth/RegisterPage.tsx)
+═══════════════════════════════════
+Two-step flow with step indicator (Step 1 of 2 / Step 2 of 2).
+Use AuthLayout.
+
+STEP 1 — Role Selection:
+  Heading: t('auth.selectRole') — 700 22px
+  Subheading: t('auth.roleHint') — 14px muted
+  
+  Two cards (side by side on ≥360px, stacked below):
+    Card A — Farmer:
+      Icon: Large wheat/leaf emoji or SVG 🌾 (48px)
+      Title: t('auth.farmer') — 700 16px
+      Desc: t('auth.farmerDesc') — 13px muted
+      Selected state: border-2 border-kb-forest bg-kb-forest/5 
+                      shadow-card with a green checkmark badge top-right
+      Unselected: border border-kb-border bg-white
+      
+    Card B — Wholesaler:
+      Icon: 🏪 or shopping/building SVG (48px)
+      Title: t('auth.wholesaler') — 700 16px
+      Desc: t('auth.wholesalerDesc') — 13px muted
+      Same selected/unselected styling
+  
+  Button (primary, lg, full width, disabled until role selected):
+    t('auth.continue') with ChevronRight icon
+
+STEP 2 — Registration Form:
+  Back button (ghost, top left) to return to Step 1
+  
+  Inputs (in order):
+    Full Name — prefix: 👤, t('auth.fullName'), required
+    Phone — prefix: 🇳🇵, t('auth.phone'), tel, maxLength=10, required
+    Email — prefix: ✉️, t('auth.emailOptional'), not required
+    Location — prefix: 📍, 
+      label dynamically: role==='FARMER' ? t('auth.pickupLocation') 
+                                         : t('auth.dropoffLocation')
+      required
+    Password — suffix: eye toggle, t('auth.password'), required
+    Confirm Password — suffix: eye toggle, t('auth.confirmPassword'), required
+  
+  Button (primary, lg, full): 
+    t('auth.register'), loading state, UserPlus icon
+  
+  Link: t('auth.haveAccount') + Sign In link
+
+Validation (all inline, real-time on blur):
+  - phone: 10 digits, starts 97 or 98
+  - password: min 6 chars
+  - confirmPassword: must match password
+  - all required fields
+
+On success: auto-login (save token + user), navigate to /dashboard
+
+═══════════════════════════════════
+CONTEXT & STATE
+═══════════════════════════════════
+
+AuthContext.tsx:
+  State: user (User | null), token (string | null), loading (boolean)
+  On mount: check localStorage('kb_token'), call /api/auth/me to 
+            validate and hydrate user
+  Functions: 
+    login(phone, password) → POST /api/auth/login → set state + localStorage
+    register(data) → POST /api/auth/register → set state + localStorage  
+    logout() → clear localStorage + state, navigate to /
+
+LanguageContext.tsx:
+  State: language ('en' | 'np')
+  On mount: read from localStorage('kb_lang'), default 'en',
+            call i18n.changeLanguage(saved)
+  toggleLanguage(): switch between en/np, save to localStorage, 
+                    call i18n.changeLanguage()
+
+lib/api.ts:
+  Axios instance with baseURL: 'http://localhost:3001'
+  Request interceptor: attach Authorization: Bearer <token> 
+                       from localStorage('kb_token')
+  Response interceptor: on 401, clear token + redirect to /
+
+═══════════════════════════════════
+ROUTING (App.tsx)
+═══════════════════════════════════
+Routes:
+  / → <LoginPage> (redirect to /dashboard if already authenticated)
+  /register → <RegisterPage>
+  /dashboard → <DashboardPage> (ProtectedRoute, any role)
+  /admin → <div>Admin Panel — Phase 4</div> 
+           (ProtectedRoute, ADMIN role only)
+
+ProtectedRoute component:
+  If loading: show full-screen Spinner with brand colors
+  If no user: redirect to /
+  If role specified and doesn't match: redirect to /dashboard
+
+═══════════════════════════════════
+DASHBOARD PAGE (placeholder)
+═══════════════════════════════════
+Mobile-centered layout (max-w-sm mx-auto px-4 pt-8):
+
+Header bar: 
+  Left: KrishiBazar logo (small, 28px) + name
+  Right: LanguageToggle (compact version, dark variant)
+
+Hero welcome card (bg-hero, rounded-card, p-6, text-white):
+  User avatar: circle (48px), bg-white/20, 
+               first letter of full_name in kb-marigold font-bold 20px
+  "t('dashboard.welcome'), {user.full_name}!" — 700 20px white
+  Badge showing role (white/20 bg)
+  Subtext from dashboard.farmerWelcome or wholesalerWelcome by role
+
+Below: 3 placeholder feature cards in a grid, each showing:
+  Icon (Lucide), Title, "Coming in Phase X" subtitle
+  Cards: "List Produce" (Phase 2), "Track Orders" (Phase 2/3), 
+         "My Profile" (Phase 5)
+
+Logout button: ghost, bottom, with LogOut icon
+
+═══════════════════════════════════
+TECHNICAL REQUIREMENTS
+═══════════════════════════════════
+1. Every UI text string must use useTranslation hook — zero hardcoded English strings
+2. Language toggle must work instantly with no page reload
+3. All form buttons show Spinner and disable during API calls
+4. API errors display as inline messages under the relevant input 
+   or as a general error message above the submit button
+5. JWT persists across page refresh (localStorage → AuthContext hydration on mount)
+6. Mobile-first responsive: all auth screens optimized for 375px–430px viewports
+7. Express uses helmet() and cors({ origin: 'http://localhost:5173' })
+8. All database IDs use uuidv4()
+9. Server startup sequence: connect DB → run schema → run seed → start Express
+10. Vite proxy in vite.config.ts: proxy '/api' to 'http://localhost:3001' 
+    (so client can call '/api/auth/...' without CORS issues in browser)
+11. Show a green toast notification on successful registration
+12. The register page step transition should animate (slide left/right)
