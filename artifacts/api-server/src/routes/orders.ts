@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { eq, desc } from "drizzle-orm";
-import { db, ordersTable, usersTable, catalogTable } from "@workspace/db";
+import { db, ordersTable, usersTable, catalogTable, inventoryLedgerTable } from "@workspace/db";
 import { verifyToken, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -134,19 +134,46 @@ router.patch("/orders/:id/status", verifyToken, requireRole("ADMIN"), async (req
   }
 
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const [order] = await db
-    .update(ordersTable)
-    .set({ status: status as typeof ordersTable.$inferInsert.status })
-    .where(eq(ordersTable.id, rawId))
-    .returning();
 
-  if (!order) {
-    res.status(404).json({ error: "Order not found" });
-    return;
+  let resultOrder: typeof ordersTable.$inferSelect | undefined;
+  let inventoryUpdated = false;
+
+  try {
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(ordersTable)
+        .set({ status: status as typeof ordersTable.$inferInsert.status })
+        .where(eq(ordersTable.id, rawId))
+        .returning();
+
+      if (!updated) throw new Error("NOT_FOUND");
+      resultOrder = updated;
+
+      const shouldReceive = updated.layer_type === "SUPPLY" && status === "COLLECTED";
+      const shouldDeliver = updated.layer_type === "DEMAND" && status === "DELIVERED";
+
+      if (shouldReceive || shouldDeliver) {
+        await tx.insert(inventoryLedgerTable).values({
+          id: uuidv4(),
+          crop_id: updated.crop_id,
+          delta_quantity: updated.weight_kg,
+          tracking_type: shouldReceive ? "RECEIVED" : "DELIVERED",
+          recorded_at: toUnixSeconds(),
+          notes: `Auto: Order ${updated.order_id} ${shouldReceive ? "collected from farmer" : "delivered to wholesaler"}`,
+        });
+        inventoryUpdated = true;
+      }
+    });
+  } catch (err: any) {
+    if (err.message === "NOT_FOUND") {
+      res.status(404).json({ error: "Order not found" });
+      return;
+    }
+    throw err;
   }
 
-  req.log.info({ orderId: order.order_id, status: order.status }, "Order status updated");
-  res.json(order);
+  req.log.info({ orderId: resultOrder!.order_id, status: resultOrder!.status, inventoryUpdated }, "Order status updated");
+  res.json({ ...resultOrder!, inventoryUpdated });
 });
 
 export default router;

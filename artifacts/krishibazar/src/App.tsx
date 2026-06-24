@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { InventoryProvider } from "@/context/InventoryContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 
 import LoginPage from "@/pages/auth/LoginPage";
@@ -84,12 +85,14 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
-          <LanguageProvider>
-            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-              <Router />
-            </WouterRouter>
-            <Toaster position="top-right" duration={3000} richColors />
-          </LanguageProvider>
+          <InventoryProvider>
+            <LanguageProvider>
+              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                <Router />
+              </WouterRouter>
+              <Toaster position="top-right" duration={3000} richColors />
+            </LanguageProvider>
+          </InventoryProvider>
         </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
+import { useInventory } from '@/context/InventoryContext';
 import { AdminLayout } from './AdminLayout';
+import { Link } from 'wouter';
 import { Users, PackageOpen, Leaf, ShoppingCart } from 'lucide-react';
 
 function StatCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: any; color: string }) {
@@ -39,6 +41,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminDashboard() {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
+  const { inventoryVersion } = useInventory();
   const lang = i18n.language as 'en' | 'np';
 
   const [stats, setStats] = useState({ active: 0, farmers: 0, wholesalers: 0, catalog: 0 });
@@ -48,6 +51,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const h = { Authorization: `Bearer ${token}` };
+    setLoading(true);
     Promise.all([
       fetch('/api/orders/all', { headers: h }).then((r) => r.json()),
       fetch('/api/users', { headers: h }).then((r) => r.json()),
@@ -64,19 +68,33 @@ export default function AdminDashboard() {
       setRecentOrders((orders || []).slice(0, 5));
       setStockSummary(inventory || []);
     }).finally(() => setLoading(false));
-  }, [token]);
+  }, [token, inventoryVersion]);
+
+  const lowStockItems = stockSummary.filter((s) => s.available_stock < 10);
 
   return (
     <AdminLayout>
       <h1 className="text-[20px] font-bold text-kb-text mb-5">{t('admin.dashboard')}</h1>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-        <StatCard label={t('admin.activeOrders')} value={stats.active} icon={ShoppingCart} color="bg-kb-forest" />
-        <StatCard label={t('admin.totalFarmers')} value={stats.farmers} icon={Users} color="bg-emerald-500" />
-        <StatCard label={t('admin.totalWholesalers')} value={stats.wholesalers} icon={PackageOpen} color="bg-kb-marigold" />
-        <StatCard label={t('admin.totalCatalog')} value={stats.catalog} icon={Leaf} color="bg-violet-500" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <StatCard label={t('admin.activeOrders')} value={loading ? '—' : stats.active} icon={ShoppingCart} color="bg-kb-forest" />
+        <StatCard label={t('admin.totalFarmers')} value={loading ? '—' : stats.farmers} icon={Users} color="bg-emerald-500" />
+        <StatCard label={t('admin.totalWholesalers')} value={loading ? '—' : stats.wholesalers} icon={PackageOpen} color="bg-kb-marigold" />
+        <StatCard label={t('admin.totalCatalog')} value={loading ? '—' : stats.catalog} icon={Leaf} color="bg-violet-500" />
       </div>
+
+      {/* Low stock alert */}
+      {!loading && lowStockItems.length > 0 && (
+        <Link href="/admin/inventory">
+          <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-amber-100 transition-colors">
+            <span className="text-amber-600 font-semibold text-[13px]">
+              {t('admin.lowStockAlert', { count: lowStockItems.length })}
+            </span>
+            <span className="ml-auto text-amber-500 text-[12px] font-medium">View →</span>
+          </div>
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Recent Orders */}
@@ -85,13 +103,16 @@ export default function AdminDashboard() {
           {loading ? (
             <div className="space-y-2">{[...Array(4)].map((_, i) => <div key={i} className="h-10 bg-kb-cream rounded animate-pulse" />)}</div>
           ) : recentOrders.length === 0 ? (
-            <p className="text-kb-muted text-sm py-4 text-center">{t('orders.noOrders')}</p>
+            <div className="flex flex-col items-center py-8 gap-2 text-kb-muted">
+              <span className="text-2xl">📋</span>
+              <p className="text-[13px]">{t('orders.noOrders')}</p>
+            </div>
           ) : (
             <div className="space-y-2">
               {recentOrders.map((o, i) => (
                 <div key={o.id} className={`flex items-center justify-between py-2 px-3 rounded-lg text-[13px] ${i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/50'}`}>
                   <div className="flex flex-col">
-                    <span className="font-mono font-bold text-kb-forest text-[12px]">{o.order_id}</span>
+                    <span className="font-mono font-bold text-kb-forest text-[12px] tracking-wide">{o.order_id}</span>
                     <span className="text-kb-muted text-[11px]">{o.client_name}</span>
                   </div>
                   <StatusBadge status={o.status} />

@@ -136,7 +136,23 @@
     "lowStock": "Low Stock",
     "adminPanel": "Admin Panel",
     "showingUsers": "Showing {{count}} users",
-    "addCrop": "Add Crop"
+    "addCrop": "Add Crop",
+    "manualAdjustment": "Manual Adjustment",
+    "autoInventoryNote": "Note: Inventory updates automatically when order statuses change to 'Picked Up' or 'Delivered'.",
+    "inventoryAutoUpdated": "📦 Inventory automatically updated",
+    "lowStockAlert": "⚠️ {{count}} item(s) running low on stock — check Inventory",
+    "recentTransactions": "Recent Transactions",
+    "addNewItem": "Add New Item",
+    "addToCatalog": "Add to Catalog",
+    "desktopRequired": "Admin Panel requires a desktop browser",
+    "desktopRequiredDesc": "Please open KrishiBazar Admin on a computer with a screen wider than 768px.",
+    "availableToUsers": "Available to users",
+    "imageUrl": "Image URL (optional)",
+    "availability": "Availability",
+    "itemsInCatalog": "{{count}} items in catalog",
+    "noItems": "No items in catalog. Add one above.",
+    "deleteConfirm": "Are you sure?",
+    "cannotDelete": "Cannot delete — this item has existing orders"
   },
   "status": {
     "ORDER_RECEIVED": "Order Received",
@@ -150,10 +166,12 @@
     "receivedKg": "Total Received (KG)",
     "deliveredKg": "Total Delivered (KG)",
     "availableKg": "Available Stock (KG)",
+    "lastUpdated": "Last Updated",
     "selectCrop": "Select Crop",
     "quantityKg": "Quantity (KG)",
     "type": "Type",
     "logEntry": "Log Entry",
-    "logSuccess": "Stock entry logged"
+    "logSuccess": "Stock entry logged",
+    "neverUpdated": "Never"
   }
 }

@@ -1,0 +1,306 @@
+Continue building KrishiBazar. Read ALL existing files before writing anything.
+Do not rebuild what already works. Fix what's broken and add what's missing.
+
+═══════════════════════════════════
+PRIORITY 1 — FIX KNOWN BROKEN ITEMS
+═══════════════════════════════════
+These were identified as broken before the session ended. Fix all of them:
+
+1. ProtectedRoute redirect fix:
+   In client/src/components/layout/ProtectedRoute.tsx (or wherever it lives),
+   change any redirect to '/dashboard' → redirect to '/' instead.
+   Role mismatch should also redirect to '/' not '/dashboard'.
+
+2. Unused import cleanup:
+   Scan all frontend files for TypeScript unused import warnings.
+   Remove any imports that are flagged. Do not change component logic.
+
+3. API server restart check:
+   Verify server/src/routes/orders.ts has the full PATCH /:id/status route.
+   Verify server/src/routes/users.ts has GET /, POST /, DELETE /:id, PATCH /:id/role.
+   Verify server/src/routes/inventory.ts has GET /summary and POST /.
+   If any are missing, write them now. Read the files first to confirm.
+
+4. App.tsx routing verification:
+   Ensure these routes exist and use ProtectedRoute with correct role:
+     /farmer        → FarmerDashboard  (role: FARMER)
+     /wholesaler    → WholesalerDashboard (role: WHOLESALER)
+     /admin         → AdminDashboard   (role: ADMIN)
+     /admin/orders  → AdminOrders      (role: ADMIN)
+     /admin/inventory → AdminInventory (role: ADMIN)
+     /admin/users   → AdminUsers       (role: ADMIN)
+     /admin/catalog → AdminCatalog     (role: ADMIN)
+   After login: FARMER→/farmer, WHOLESALER→/wholesaler, ADMIN→/admin
+
+═══════════════════════════════════
+PRIORITY 2 — AUTOMATIC INVENTORY SYSTEM
+═══════════════════════════════════
+This is the core new feature. When an admin changes an order status,
+the inventory_ledger must be updated automatically — no manual logging needed.
+
+--- Backend: Update PATCH /api/orders/:id/status ---
+
+Read server/src/routes/orders.ts first.
+
+Current logic: validate status → update order status → return order.
+
+NEW logic — add automatic inventory entries AFTER the status update,
+inside the same database transaction:
+
+IF new status === 'COLLECTED' (SUPPLY order, farmer's produce picked up):
+  → The company has RECEIVED stock from the farmer.
+  → Auto-insert into inventory_ledger:
+    {
+      id: uuidv4(),
+      crop_id: order.crop_id,
+      delta_quantity: order.weight_kg,
+      tracking_type: 'RECEIVED',
+      recorded_at: unixepoch(),
+      notes: `Auto: Order ${order.order_id} collected from farmer`
+    }
+
+IF new status === 'DELIVERED' (DEMAND order, wholesaler received delivery):
+  → The company has DELIVERED stock to the wholesaler.
+  → Auto-insert into inventory_ledger:
+    {
+      id: uuidv4(),
+      crop_id: order.crop_id,
+      delta_quantity: order.weight_kg,
+      tracking_type: 'DELIVERED',
+      recorded_at: unixepoch(),
+      notes: `Auto: Order ${order.order_id} delivered to wholesaler`
+    }
+
+For all other status changes: no inventory entry, just update the status.
+
+IMPORTANT: Wrap the status update + inventory insert in a single SQLite 
+transaction so they are atomic. If the inventory insert fails, 
+the status update should also roll back.
+
+Use this transaction pattern with better-sqlite3:
+  const transaction = db.transaction(() => {
+    // 1. UPDATE orders SET status = ? WHERE id = ?
+    // 2. INSERT INTO inventory_ledger ... (only if COLLECTED or DELIVERED)
+  });
+  transaction();
+
+Return in the API response an extra field `inventoryUpdated: true/false`
+so the frontend knows when to refresh the inventory display.
+
+--- Frontend: Admin Orders Page Update ---
+
+Read client/src/pages/admin/AdminOrders.tsx first.
+
+After a successful status PATCH that returns `inventoryUpdated: true`:
+  Show an additional toast notification:
+    EN: "📦 Inventory automatically updated"
+    NP: "📦 भण्डार स्वचालित रूपमा अपडेट गरियो"
+  Color: blue-ish info toast (bg-blue-50 border-blue-200 text-blue-800)
+  Auto-dismiss after 4 seconds.
+
+--- Frontend: Admin Inventory Page Update ---
+
+Read client/src/pages/admin/AdminInventory.tsx first.
+
+The manual log form (POST /api/inventory) should still exist but:
+1. Add a clear label above it: 
+   EN: "Manual Adjustment" / NP: "म्यानुअल समायोजन"
+2. Add a note below the form title:
+   EN: "Note: Inventory updates automatically when order statuses 
+        change to 'Picked Up' or 'Delivered'."
+   NP: "नोट: अर्डर स्थिति 'सङ्कलन गरियो' वा 'डेलिभर गरियो' मा 
+        परिवर्तन हुँदा भण्डार स्वचालित रूपमा अपडेट हुन्छ।"
+3. Style this note as a small info callout:
+   bg-blue-50 border-l-4 border-blue-400 text-blue-700 px-3 py-2 
+   rounded text-xs mb-4
+
+The Stock Summary table must also show an "Auto-updated" indicator:
+In each row of the summary table, add a small column "Last Updated"
+showing the recorded_at timestamp of the most recent ledger entry 
+for that crop (formatted as relative time: "2 hours ago", "Just now", 
+"3 days ago"). Compute this from the inventory summary query.
+
+Update GET /api/inventory/summary on the backend to also return:
+  last_updated: MAX(recorded_at) for each crop_id group
+  last_entry_type: the tracking_type of that most recent entry 
+                   ('RECEIVED' or 'DELIVERED' or null)
+
+--- Frontend: Admin Dashboard Page Update ---
+
+Read client/src/pages/admin/AdminDashboard.tsx first.
+
+The Stock Summary widget on the dashboard must also refresh automatically
+when any order status change triggers an inventory update.
+Implement this with a React state flag: after any status change 
+in the system triggers inventoryUpdated=true, emit a custom event
+or use a shared React context flag `inventoryVersion` (a counter) 
+that increments, causing the inventory summary component to re-fetch.
+
+Create client/src/context/InventoryContext.tsx:
+  export const InventoryContext with:
+    inventoryVersion: number (starts at 0)
+    bumpInventory: () => void (increments the version by 1)
+  
+  Wrap the app in <InventoryProvider> in main.tsx or App.tsx.
+
+  AdminOrders page: after successful status update with inventoryUpdated=true,
+    call bumpInventory() from useInventory() hook.
+  
+  AdminDashboard and AdminInventory: use inventoryVersion as a dependency
+    in their useEffect fetch calls so they automatically re-fetch when it changes.
+
+═══════════════════════════════════
+PRIORITY 3 — ADMIN CATALOG MANAGEMENT (PHASE 5)
+═══════════════════════════════════
+If client/src/pages/admin/AdminCatalog.tsx exists and is incomplete, 
+complete it now. If it does not exist, create it.
+
+Read any existing catalog-related files first.
+
+Full catalog management page layout:
+
+TOP SECTION — "Add Item to Catalog" form (always visible, not collapsible):
+  Card with heading: "Add New Item" / "नयाँ वस्तु थप्नुहोस्"
+  
+  Fields:
+    Item Name (English): text input, required
+    Item Name (Nepali / नेपाली नाम): text input, required,
+      placeholder "टमाटर" — use Noto Sans Devanagari font on this input
+    Category: segmented control / radio buttons
+      🥦 Vegetable / तरकारी  |  🫙 Pickle / अचार
+    Image URL: text input, optional, placeholder "https://..."
+      Below: small preview box (60×60px, rounded-card) showing the image
+             if a valid URL is entered, else show a green placeholder square
+             with the first letter of the English name
+    Availability: toggle switch (default ON)
+      Label: "Available to users" / "प्रयोगकर्ताका लागि उपलब्ध"
+  
+  Button: "Add to Catalog" / "सूचीमा थप्नुहोस्" (primary, full width)
+  → POST /api/catalog with { crop_name, crop_name_np, category, image_url, is_available }
+  On success: green toast + reset form + refresh catalog list
+
+BOTTOM SECTION — Current Catalog grid:
+  Two tab filters: "All" | "Vegetables" | "Pickles"
+  
+  Render as a responsive grid (3 columns on desktop, 2 on tablet):
+    Each card shows:
+      Image (60×60, rounded-card) or placeholder letter square
+      Crop name (EN) — bold 14px
+      Crop name (NP) — 12px kb-muted, Devanagari font
+      Category badge: green for VEGETABLE, amber for PICKLE
+      Availability toggle (inline switch)
+        ON → "Available" (green) | OFF → "Hidden" (gray)
+        On toggle: PATCH /api/catalog/:id with { is_available: !current }
+      Delete button (small, ghost-red, trash icon)
+        Confirmation: inline "Are you sure?" text with Confirm/Cancel buttons
+        appearing below the card (not a modal)
+        On confirm: DELETE /api/catalog/:id
+        Guard: if catalog item has associated orders, return error from API
+               "Cannot delete — this item has existing orders"
+               Show as red inline error on that card
+
+Backend routes to add/verify in server/src/routes/catalog.ts:
+  POST /api/catalog
+    Auth: ADMIN only
+    Body: { crop_name, crop_name_np, category, image_url?, is_available? }
+    Returns 201: { item }
+  
+  PATCH /api/catalog/:id
+    Auth: ADMIN only
+    Body: { crop_name?, crop_name_np?, is_available?, image_url? }
+    Returns 200: { item }
+  
+  DELETE /api/catalog/:id
+    Auth: ADMIN only
+    Check: if any orders reference this crop_id, return 409 with error message
+    Returns 200: { message }
+
+═══════════════════════════════════
+PRIORITY 4 — PLATFORM VIEW GUARDS
+═══════════════════════════════════
+
+Mobile guard for Admin routes:
+  In AdminDashboard, AdminOrders, AdminInventory, AdminUsers, AdminCatalog —
+  add a viewport width check at the top of each component:
+  
+  If window.innerWidth < 768px, render a guard screen instead of the panel:
+    Full-screen centered layout:
+      🖥️ icon (large, 64px)
+      Heading: "Admin Panel requires a desktop browser"
+              / "एडमिन प्यानलका लागि डेस्कटप ब्राउजर चाहिन्छ"
+      Subtext: "Please open KrishiBazar Admin on a computer with 
+                a screen wider than 768px."
+              / "कृपया ७६८px भन्दा फराकिलो स्क्रिनमा KrishiBazar 
+                एडमिन खोल्नुहोस्।"
+      Logout button below
+    
+    Use a custom hook useViewportGuard(minWidth: number): boolean
+    Create at client/src/hooks/useViewportGuard.ts:
+      Uses window.innerWidth + resize event listener
+      Returns true if viewport >= minWidth, false if smaller
+      Cleans up listener on unmount
+
+Admin route guard for non-admin users:
+  If a FARMER or WHOLESALER somehow reaches /admin/* routes,
+  ProtectedRoute should redirect to /farmer or /wholesaler respectively,
+  NOT to /.
+
+═══════════════════════════════════
+PRIORITY 5 — FINAL POLISH ITEMS
+═══════════════════════════════════
+
+1. Order ID display consistency:
+   Everywhere an order_id appears in the UI (order cards, admin tables,
+   success screens), wrap it in:
+   <span className="font-mono text-kb-forest tracking-wide">
+   so it always looks like a reference code.
+
+2. Empty states:
+   Every list/table that can be empty must have a proper empty state:
+   - Farmer My Orders empty: 🌾 icon + "No orders yet. Place your first order!"
+   - Wholesaler My Orders empty: 🏪 icon + "No orders yet."
+   - Admin orders table empty (per tab): 📋 icon + "No orders found."
+   - Admin users table empty: 👥 icon + "No users found."
+   - Catalog empty: 🌿 icon + "No items in catalog. Add one above."
+   All empty states should use kb-muted color and centered layout.
+
+3. Inventory ledger history (Admin Inventory page):
+   Below the stock summary table, add a collapsible section:
+   "Recent Transactions" / "भर्खरका लेनदेनहरू" (collapsed by default)
+   When expanded, show the last 20 inventory_ledger entries as a list:
+     Each row: [RECEIVED / DELIVERED badge] | Crop name | Quantity KG | 
+               Time (relative) | Notes (if any)
+   RECEIVED badge: bg-green-50 text-green-700
+   DELIVERED badge: bg-red-50 text-red-700
+   Auto-entries from order status changes show notes with the order ID.
+   Manual entries show notes entered by admin.
+   Fetch from new backend endpoint:
+     GET /api/inventory/history?limit=20
+     Auth: ADMIN
+     Returns last 20 ledger entries joined with catalog (crop_name, crop_name_np)
+     Order by recorded_at DESC
+
+4. Dashboard stat card for Admin — add "Low Stock Alerts":
+   Below the 4 main stat cards, if any catalog item has available_stock < 10,
+   show an amber warning banner:
+   "⚠️ {{count}} item(s) running low on stock — check Inventory"
+   Link the banner to /admin/inventory
+   If nothing is low, don't show the banner.
+
+5. Consistent loading skeletons:
+   Any page that fetches data must show skeleton placeholders while loading.
+   Use this pattern (not a spinner for full-page data):
+   For tables: 5 rows of gray rounded bars (animate-pulse, bg-gray-100)
+   For stat cards: gray rounded rectangles matching card size
+   For order cards: gray card-shaped skeletons
+
+═══════════════════════════════════
+TECHNICAL RULES
+═══════════════════════════════════
+1. Read every file before modifying it — do not overwrite working code
+2. Use better-sqlite3 transactions for any multi-step DB operations
+3. All new i18n strings must be added to BOTH en.json and np.json
+4. Do not introduce new dependencies unless absolutely necessary
+5. After all changes, verify both server and client compile without errors
+6. Test the critical path: POST /api/orders → PATCH status to COLLECTED 
+   → verify inventory_ledger has a new RECEIVED entry

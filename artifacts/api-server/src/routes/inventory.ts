@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import { db, inventoryLedgerTable, catalogTable } from "@workspace/db";
 import { verifyToken, requireRole } from "../middlewares/auth";
 
@@ -18,9 +18,17 @@ async function buildStockSummary() {
         .select({
           received: sql<number>`COALESCE(SUM(CASE WHEN ${inventoryLedgerTable.tracking_type} = 'RECEIVED' THEN ${inventoryLedgerTable.delta_quantity} ELSE 0 END), 0)`,
           delivered: sql<number>`COALESCE(SUM(CASE WHEN ${inventoryLedgerTable.tracking_type} = 'DELIVERED' THEN ${inventoryLedgerTable.delta_quantity} ELSE 0 END), 0)`,
+          last_updated: sql<number | null>`MAX(${inventoryLedgerTable.recorded_at})`,
         })
         .from(inventoryLedgerTable)
         .where(eq(inventoryLedgerTable.crop_id, crop.id));
+
+      const [lastEntry] = await db
+        .select({ tracking_type: inventoryLedgerTable.tracking_type })
+        .from(inventoryLedgerTable)
+        .where(eq(inventoryLedgerTable.crop_id, crop.id))
+        .orderBy(desc(inventoryLedgerTable.recorded_at))
+        .limit(1);
 
       const received_total = Number(row?.received ?? 0);
       const delivered_total = Number(row?.delivered ?? 0);
@@ -32,6 +40,8 @@ async function buildStockSummary() {
         received_total,
         delivered_total,
         available_stock: Math.max(0, received_total - delivered_total),
+        last_updated: row?.last_updated ?? null,
+        last_entry_type: lastEntry?.tracking_type ?? null,
       };
     }),
   );
@@ -40,6 +50,26 @@ async function buildStockSummary() {
 router.get("/inventory/summary", verifyToken, async (_req, res): Promise<void> => {
   const summary = await buildStockSummary();
   res.json(summary);
+});
+
+router.get("/inventory/history", verifyToken, requireRole("ADMIN"), async (req, res): Promise<void> => {
+  const limit = Math.min(Number(req.query.limit) || 20, 50);
+  const entries = await db
+    .select({
+      id: inventoryLedgerTable.id,
+      crop_id: inventoryLedgerTable.crop_id,
+      crop_name: catalogTable.crop_name,
+      crop_name_np: catalogTable.crop_name_np,
+      delta_quantity: inventoryLedgerTable.delta_quantity,
+      tracking_type: inventoryLedgerTable.tracking_type,
+      recorded_at: inventoryLedgerTable.recorded_at,
+      notes: inventoryLedgerTable.notes,
+    })
+    .from(inventoryLedgerTable)
+    .leftJoin(catalogTable, eq(inventoryLedgerTable.crop_id, catalogTable.id))
+    .orderBy(desc(inventoryLedgerTable.recorded_at))
+    .limit(limit);
+  res.json(entries);
 });
 
 router.get("/inventory", verifyToken, async (_req, res): Promise<void> => {

@@ -136,7 +136,23 @@
     "lowStock": "कम स्टक",
     "adminPanel": "प्रशासक",
     "showingUsers": "{{count}} प्रयोगकर्ता देखाइँदैछ",
-    "addCrop": "बाली थप्नुहोस्"
+    "addCrop": "बाली थप्नुहोस्",
+    "manualAdjustment": "म्यानुअल समायोजन",
+    "autoInventoryNote": "नोट: अर्डर स्थिति 'सङ्कलन गरियो' वा 'डेलिभर गरियो' मा परिवर्तन हुँदा भण्डार स्वचालित रूपमा अपडेट हुन्छ।",
+    "inventoryAutoUpdated": "📦 भण्डार स्वचालित रूपमा अपडेट गरियो",
+    "lowStockAlert": "⚠️ {{count}} वस्तु(हरू) कम स्टकमा छ — भण्डार जाँच्नुहोस्",
+    "recentTransactions": "भर्खरका लेनदेनहरू",
+    "addNewItem": "नयाँ वस्तु थप्नुहोस्",
+    "addToCatalog": "सूचीमा थप्नुहोस्",
+    "desktopRequired": "एडमिन प्यानलका लागि डेस्कटप ब्राउजर चाहिन्छ",
+    "desktopRequiredDesc": "कृपया ७६८px भन्दा फराकिलो स्क्रिनमा KrishiBazar एडमिन खोल्नुहोस्।",
+    "availableToUsers": "प्रयोगकर्ताका लागि उपलब्ध",
+    "imageUrl": "तस्विर URL (वैकल्पिक)",
+    "availability": "उपलब्धता",
+    "itemsInCatalog": "{{count}} वस्तुहरू सूचीमा छन्",
+    "noItems": "सूचीमा कुनै वस्तु छैन। माथि थप्नुहोस्।",
+    "deleteConfirm": "के तपाईं निश्चित हुनुहुन्छ?",
+    "cannotDelete": "मेट्न सकिँदैन — यस वस्तुमा अर्डरहरू छन्"
   },
   "status": {
     "ORDER_RECEIVED": "अर्डर प्राप्त",
@@ -150,10 +166,12 @@
     "receivedKg": "कुल प्राप्त (के.जी.)",
     "deliveredKg": "कुल डेलिभर (के.जी.)",
     "availableKg": "उपलब्ध स्टक (के.जी.)",
+    "lastUpdated": "अन्तिम अपडेट",
     "selectCrop": "बाली छान्नुहोस्",
     "quantityKg": "परिमाण (के.जी.)",
     "type": "प्रकार",
     "logEntry": "प्रविष्टि लग गर्नुहोस्",
-    "logSuccess": "स्टक प्रविष्टि लग गरियो"
+    "logSuccess": "स्टक प्रविष्टि लग गरियो",
+    "neverUpdated": "कहिल्यै अपडेट भएन"
   }
 }

@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { eq } from "drizzle-orm";
-import { db, catalogTable } from "@workspace/db";
+import { db, catalogTable, ordersTable } from "@workspace/db";
 import {
   GetCatalogResponse,
   CreateCatalogItemBody,
@@ -97,6 +97,39 @@ router.patch(
     }
 
     res.json(UpdateCatalogItemResponse.parse(item));
+  },
+);
+
+router.delete(
+  "/catalog/:id",
+  verifyToken,
+  requireRole("ADMIN"),
+  async (req, res): Promise<void> => {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+    const [existingOrder] = await db
+      .select({ id: ordersTable.id })
+      .from(ordersTable)
+      .where(eq(ordersTable.crop_id, rawId))
+      .limit(1);
+
+    if (existingOrder) {
+      res.status(409).json({ error: "Cannot delete — this item has existing orders" });
+      return;
+    }
+
+    const [deleted] = await db
+      .delete(catalogTable)
+      .where(eq(catalogTable.id, rawId))
+      .returning();
+
+    if (!deleted) {
+      res.status(404).json({ error: "Catalog item not found" });
+      return;
+    }
+
+    req.log.info({ itemId: rawId }, "Catalog item deleted");
+    res.json({ message: "Catalog item deleted" });
   },
 );
 

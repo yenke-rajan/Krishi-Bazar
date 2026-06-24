@@ -3,7 +3,8 @@ import { Link, useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
-import { LayoutDashboard, PackageOpen, BarChart3, Users, Leaf, LogOut, Menu, X } from 'lucide-react';
+import { useViewportGuard } from '@/hooks/useViewportGuard';
+import { LayoutDashboard, PackageOpen, BarChart3, Users, Leaf, LogOut, Menu, Monitor } from 'lucide-react';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const { user, logout } = useAuth();
   const [location] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isDesktop = useViewportGuard(768);
 
   const navItems = [
     { path: '/admin', label: t('admin.dashboard'), icon: LayoutDashboard },
@@ -25,7 +27,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
 
   const Sidebar = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
       <div className="px-5 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-kb-marigold rounded-lg flex items-center justify-center font-bold text-white text-sm">K</div>
@@ -36,7 +37,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {navItems.map(({ path, label, icon: Icon }) => {
           const isActive = path === '/admin' ? location === '/admin' : location.startsWith(path);
@@ -57,7 +57,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         })}
       </nav>
 
-      {/* Bottom */}
       <div className="px-3 py-4 border-t border-white/10 space-y-3">
         <LanguageToggle className="w-full justify-center" />
         <div className="px-3 py-2">
@@ -75,14 +74,31 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     </div>
   );
 
+  if (!isDesktop) {
+    return (
+      <div className="min-h-screen bg-kb-cream flex flex-col items-center justify-center px-6 text-center gap-5">
+        <Monitor className="w-16 h-16 text-kb-muted" />
+        <div>
+          <h1 className="text-[18px] font-bold text-kb-text mb-2">{t('admin.desktopRequired')}</h1>
+          <p className="text-[13px] text-kb-muted max-w-xs">{t('admin.desktopRequiredDesc')}</p>
+        </div>
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 bg-white border border-kb-border text-kb-muted px-5 py-2.5 rounded-xl text-[13px] font-medium"
+        >
+          <LogOut className="w-4 h-4" />
+          {t('nav.logout')}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen bg-kb-cream overflow-hidden">
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-60 shrink-0 bg-kb-deep flex-col">
         <Sidebar />
       </aside>
 
-      {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
@@ -92,9 +108,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       )}
 
-      {/* Main */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile top bar */}
         <div className="md:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-kb-border">
           <button onClick={() => setSidebarOpen(true)} className="p-2 rounded-lg hover:bg-kb-cream">
             <Menu className="w-5 h-5 text-kb-text" />

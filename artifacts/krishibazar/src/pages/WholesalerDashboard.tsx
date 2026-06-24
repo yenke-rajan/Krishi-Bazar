@@ -33,7 +33,6 @@ function StatusBadge({ status }: { status: string }) {
 export default function WholesalerDashboard() {
   const { t, i18n } = useTranslation();
   const { user, token, logout } = useAuth();
-  const { language } = useLanguage();
   const lang = i18n.language as 'en' | 'np';
 
   const [activeTab, setActiveTab] = useState<'place' | 'orders'>('place');

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
+import { useInventory } from '@/context/InventoryContext';
 import { AdminLayout } from './AdminLayout';
 import { formatBSDate } from '@/lib/bs-calendar';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ function StatusBadge({ status }: { status: string }) {
 export default function AdminOrders() {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
+  const { bumpInventory } = useInventory();
   const lang = i18n.language as 'en' | 'np';
 
   const [orders, setOrders] = useState<any[]>([]);
@@ -61,7 +63,14 @@ export default function AdminOrders() {
         body: JSON.stringify({ status }),
       });
       if (!res.ok) throw new Error('Failed');
+      const data = await res.json();
       toast.success(t('admin.statusUpdated'));
+      if (data.inventoryUpdated) {
+        toast.info(lang === 'np' ? '📦 भण्डार स्वचालित रूपमा अपडेट गरियो' : '📦 Inventory automatically updated', {
+          duration: 4000,
+        });
+        bumpInventory();
+      }
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
     } catch {
       toast.error(t('errors.serverError'));
@@ -97,7 +106,6 @@ export default function AdminOrders() {
         />
       </div>
 
-      {/* Layer tabs */}
       <div className="flex bg-white border border-kb-border rounded-xl p-1 gap-1 mb-4 w-fit">
         {(['SUPPLY', 'DEMAND'] as LayerFilter[]).map((lt) => (
           <button
@@ -137,11 +145,20 @@ export default function AdminOrders() {
                   </tr>
                 ))
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-kb-muted">{t('orders.noOrders')}</td></tr>
+                <tr>
+                  <td colSpan={9} className="px-4 py-14 text-center">
+                    <div className="flex flex-col items-center gap-2 text-kb-muted">
+                      <span className="text-3xl">📋</span>
+                      <p className="text-[13px]">{t('orders.noOrders')}</p>
+                    </div>
+                  </td>
+                </tr>
               ) : (
                 filtered.map((o, i) => (
                   <tr key={o.id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
-                    <td className="px-4 py-3 font-mono font-bold text-kb-forest text-[12px] whitespace-nowrap">{o.order_id}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <span className="font-mono font-bold text-kb-forest text-[12px] tracking-wide">{o.order_id}</span>
+                    </td>
                     <td className="px-4 py-3 font-medium text-kb-text whitespace-nowrap">{o.client_name || '—'}</td>
                     <td className="px-4 py-3 text-kb-muted whitespace-nowrap">{o.client_phone || '—'}</td>
                     <td className="px-4 py-3 text-kb-muted whitespace-nowrap max-w-[120px] truncate">{o.client_address || '—'}</td>
