@@ -1,0 +1,361 @@
+Continue building KrishiBazar. Read ALL relevant files before writing anything.
+Three distinct problem areas to fix. Do not break what is already working.
+
+═══════════════════════════════════
+PRIORITY 1 — FIX 404 ROUTES FOR FARMER & WHOLESALER
+═══════════════════════════════════
+The following routes return 404 and must be fixed:
+  /farmer/place-order
+  /farmer/my-orders
+  /farmer/profile
+  /wholesaler/place-order
+  /wholesaler/my-orders
+  /wholesaler/profile
+
+Read client/src/App.tsx first to understand the current routing structure.
+Read the existing FarmerDashboard and WholesalerDashboard files.
+Read any existing layout files under client/src/components/layout/.
+
+THE PROBLEM is almost certainly one of these — diagnose which it is:
+  A) The routes are not defined in App.tsx at these paths
+  B) The parent layout component is missing an <Outlet /> for nested routes
+  C) The tab navigation uses window.location or anchor href instead of 
+     React Router <Link> or useNavigate
+
+FIX based on what you find:
+
+APPROACH — Use flat route definitions (most reliable):
+  Define every route explicitly and flatly in App.tsx:
+
+  <Route path="/farmer" element={<ProtectedRoute role="FARMER"><FarmerLayout /></ProtectedRoute>}>
+    <Route index element={<Navigate to="/farmer/place-order" replace />} />
+    <Route path="place-order" element={<FarmerPlaceOrder />} />
+    <Route path="my-orders" element={<FarmerMyOrders />} />
+    <Route path="profile" element={<UserProfile />} />
+  </Route>
+
+  <Route path="/wholesaler" element={<ProtectedRoute role="WHOLESALER"><WholesalerLayout />
+    </ProtectedRoute>}>
+    <Route index element={<Navigate to="/wholesaler/place-order" replace />} />
+    <Route path="place-order" element={<WholesalerPlaceOrder />} />
+    <Route path="my-orders" element={<WholesalerMyOrders />} />
+    <Route path="profile" element={<UserProfile />} />
+  </Route>
+
+Split the existing monolithic FarmerDashboard into separate page files
+if they do not already exist as separate files:
+  client/src/pages/farmer/FarmerLayout.tsx   (contains bottom nav + <Outlet />)
+  client/src/pages/farmer/FarmerPlaceOrder.tsx  (the 4-step order flow)
+  client/src/pages/farmer/FarmerMyOrders.tsx    (order list + timeline)
+
+Split the existing monolithic WholesalerDashboard similarly:
+  client/src/pages/wholesaler/WholesalerLayout.tsx
+  client/src/pages/wholesaler/WholesalerPlaceOrder.tsx
+  client/src/pages/wholesaler/WholesalerMyOrders.tsx
+
+SHARED: client/src/pages/shared/UserProfile.tsx
+  Shows editable profile for both FARMER and WHOLESALER:
+  - Full Name (editable)
+  - Phone (read-only, shown as static text)
+  - Email (editable)
+  - Location (editable — labeled "Pick-up Location" for FARMER, 
+    "Drop-off Location" for WHOLESALER)
+  - "Save Changes" button → PATCH /api/users/me
+  - Role badge (read-only display)
+  
+  Backend: add PATCH /api/users/me endpoint:
+    Auth: any authenticated user
+    Body: { full_name?, email?, primary_address? }
+    Cannot change phone or role via this endpoint
+    Returns 200: { user }
+
+FarmerLayout.tsx — mobile bottom navigation bar:
+  Fixed bottom bar (fixed bottom-0 left-0 right-0 bg-white border-t border-kb-border
+  shadow-[0_-4px_12px_rgba(0,0,0,0.06)] z-50 pb-safe):
+  
+  3 tab items using React Router <NavLink>:
+    Home/Place Order → /farmer/place-order
+      Icon: ShoppingBasket (Lucide)
+      Label: t('orders.placeOrder') / "अर्डर राख्नुहोस्"
+    
+    My Orders → /farmer/my-orders
+      Icon: ClipboardList (Lucide)
+      Label: t('orders.myOrders') / "मेरा अर्डर"
+    
+    Profile → /farmer/profile
+      Icon: User (Lucide)
+      Label: t('nav.profile') / "प्रोफाइल"
+  
+  Active tab: icon + label in kb-forest color, small green dot above icon
+  Inactive tab: icon + label in kb-muted color
+  Each tab: flex-1 flex flex-col items-center justify-center py-2 gap-0.5
+
+WholesalerLayout.tsx — identical bottom nav but links point to /wholesaler/*:
+  Home/Place Order → /wholesaler/place-order
+  My Orders → /wholesaler/my-orders
+  Profile → /wholesaler/profile
+
+Both layouts: add padding-bottom of 80px to the main content area
+so content is never hidden behind the bottom nav bar.
+
+Add <Outlet /> inside the main content area of both layout files.
+
+═══════════════════════════════════
+PRIORITY 2 — LOCK FINAL ORDER STATUSES
+═══════════════════════════════════
+Read client/src/pages/admin/AdminOrders.tsx first.
+
+Rule: once an order reaches its terminal status, it must be locked
+and the status cannot be changed further.
+
+Terminal statuses:
+  SUPPLY orders: COLLECTED is terminal (no further changes allowed)
+  DEMAND orders: DELIVERED is terminal (no further changes allowed)
+
+FRONTEND CHANGES in AdminOrders.tsx:
+
+In the status column of each order row:
+  IF order is at terminal status (COLLECTED for SUPPLY, DELIVERED for DEMAND):
+    Replace the status dropdown with a static locked badge:
+      Green badge showing the terminal status label
+      A small lock icon (🔒 or Lucide Lock, 12px) next to the badge
+      Tooltip on hover: "This order is complete and cannot be changed"
+                      / "यो अर्डर पूरा भयो र परिवर्तन गर्न सकिँदैन"
+      The entire Actions cell shows: locked badge + no dropdown
+  
+  ELSE (order is not yet terminal):
+    Show the status dropdown as before, but only show FORWARD progression:
+      SUPPLY: 
+        If current=ORDER_RECEIVED → options: [ORDER_RECEIVED(current), DISPATCHED_TO_COLLECT]
+        If current=DISPATCHED_TO_COLLECT → options: [DISPATCHED_TO_COLLECT(current), COLLECTED]
+      DEMAND:
+        If current=ORDER_RECEIVED → options: [ORDER_RECEIVED(current), DISPATCHED]
+        If current=DISPATCHED → options: [DISPATCHED(current), DELIVERED]
+      
+      Current status option: shown as selected, with "(current)" label
+      No ability to go backwards
+
+BACKEND CHANGE in PATCH /api/orders/:id/status:
+  Read the existing order's current status and layer_type from DB first.
+  Add validation:
+    If current status is COLLECTED (SUPPLY) or DELIVERED (DEMAND):
+      Return 400: { error: 'Order is already complete and cannot be updated' }
+                  { error_np: 'अर्डर पहिले नै पूरा भएको छ' }
+  
+  Also validate forward-only progression:
+    SUPPLY allowed transitions:
+      ORDER_RECEIVED → DISPATCHED_TO_COLLECT ✓
+      DISPATCHED_TO_COLLECT → COLLECTED ✓
+      anything else → 400 error
+    DEMAND allowed transitions:
+      ORDER_RECEIVED → DISPATCHED ✓
+      DISPATCHED → DELIVERED ✓
+      anything else → 400 error
+
+Visual treatment for completed/locked order rows in the table:
+  The entire row: opacity-75 bg-green-50/30
+  Order ID text: add a ✓ checkmark prefix in green
+  This makes completed orders visually recede while still being visible
+
+═══════════════════════════════════
+PRIORITY 3 — RETHINK STOCK SUMMARY LOGIC
+═══════════════════════════════════
+The stock summary needs a complete data model rethink.
+Read server/src/routes/inventory.ts and all related files first.
+
+THE NEW OPERATIONAL MODEL:
+The stock summary answers three questions per crop:
+  1. "To Receive"  = KG coming IN from farmers (active, non-terminal SUPPLY orders)
+  2. "To Deliver"  = KG going OUT to wholesalers (active, non-terminal DEMAND orders)
+  3. "In Warehouse" = KG currently physically held (COLLECTED - DELIVERED via inventory_ledger)
+
+DATA SOURCES:
+  "To Receive" per crop:
+    SELECT crop_id, SUM(weight_kg) FROM orders
+    WHERE layer_type='SUPPLY' 
+    AND status IN ('ORDER_RECEIVED', 'DISPATCHED_TO_COLLECT')
+    GROUP BY crop_id
+    (These are farmer orders not yet collected — still pending)
+
+  "To Deliver" per crop:
+    SELECT crop_id, SUM(weight_kg) FROM orders
+    WHERE layer_type='DEMAND'
+    AND status IN ('ORDER_RECEIVED', 'DISPATCHED')
+    GROUP BY crop_id
+    (These are wholesaler orders not yet delivered — still pending)
+
+  "In Warehouse" per crop:
+    SELECT crop_id, 
+      SUM(CASE WHEN tracking_type='RECEIVED' THEN delta_quantity ELSE 0 END) -
+      SUM(CASE WHEN tracking_type='DELIVERED' THEN delta_quantity ELSE 0 END) AS warehouse_stock
+    FROM inventory_ledger
+    GROUP BY crop_id
+    (Auto-populated when COLLECTED/DELIVERED status changes happen)
+
+BACKEND — Rewrite GET /api/inventory/summary:
+  Return a joined result per catalog item. Include ALL catalog items 
+  (even if all values are 0). Left join all three data sources.
+  
+  Return shape per item:
+  {
+    crop_id: string,
+    crop_name: string,
+    crop_name_np: string,
+    to_receive: number,      // KG from pending SUPPLY orders
+    to_deliver: number,      // KG from pending DEMAND orders
+    in_warehouse: number,    // KG physically in stock (collected - delivered)
+    last_updated: number | null,     // MAX recorded_at from inventory_ledger
+    last_entry_type: string | null   // RECEIVED or DELIVERED
+  }
+
+Also keep GET /api/inventory/history?limit=20 working as before.
+
+FRONTEND — Update ALL stock summary displays:
+
+1. AdminDashboard stock summary widget:
+   Table columns (rename from old names):
+     Crop | To Receive (KG) | To Deliver (KG) | In Warehouse (KG)
+   
+   "To Receive" column:
+     Shows KG from pending farmer orders (not yet collected)
+     Color: amber/orange — bg-amber-50 text-amber-700
+     If 0: show dash "—"
+   
+   "To Deliver" column:
+     Shows KG from pending wholesaler orders (not yet delivered)
+     Color: blue — bg-blue-50 text-blue-700
+     If 0: show dash "—"
+   
+   "In Warehouse" column (this is the actual available stock):
+     Shows physically collected and not yet delivered stock
+     Color: 
+       > 50: text-kb-success font-semibold
+       10–50: text-amber-600
+       < 10: text-kb-error font-semibold + ⚠️
+       = 0: text-kb-muted "—"
+   
+   Low stock alert: trigger when in_warehouse < 10 (not total stock)
+   
+   Explanatory note below the table header:
+     EN: "To Receive = pending farmer pickups | 
+          To Deliver = pending wholesaler orders | 
+          In Warehouse = actual current stock"
+     NP: "प्राप्त गर्न = किसानको पेन्डिङ सङ्कलन | 
+          डेलिभर गर्न = थोकको पेन्डिङ अर्डर | 
+          भण्डारमा = वास्तविक हालको स्टक"
+     Style: text-xs text-kb-muted italic mb-2
+
+2. AdminInventory stock summary table:
+   Same column structure as above.
+   Rename the manual log section heading:
+     "Manual Warehouse Adjustment" / "म्यानुअल भण्डार समायोजन"
+   
+   In the manual form, the "Type" radio buttons:
+     Change labels:
+       "RECEIVED" radio → "Add to Warehouse" / "भण्डारमा थप्नुहोस्"
+         (for physical stock corrections/additions not from orders)
+       "DELIVERED" radio → "Remove from Warehouse" / "भण्डारबाट हटाउनुहोस्"
+         (for manual removals/corrections)
+   
+   Update the info note to read:
+     EN: "Warehouse stock updates automatically when Admin marks a 
+          farmer order as 'Picked Up' (increases stock) or a 
+          wholesaler order as 'Delivered' (decreases stock). 
+          Use manual adjustment only for corrections."
+     NP: "भण्डार स्टक स्वचालित रूपमा अपडेट हुन्छ जब एडमिनले 
+          किसानको अर्डरलाई 'सङ्कलन गरियो' (स्टक बढ्छ) वा 
+          थोकको अर्डरलाई 'डेलिभर गरियो' (स्टक घट्छ) भनी चिन्ह लगाउँछ।
+          सुधारको लागि मात्र म्यानुअल समायोजन प्रयोग गर्नुहोस्।"
+
+3. Add a HOW IT WORKS explainer card on AdminInventory page:
+   Collapsible card (collapsed by default) with heading "📖 How Stock Works"
+   
+   Content:
+   EN:
+   "→ When you mark a farmer order PICKED UP: 
+      that crop's KG moves into 'In Warehouse'
+    → When you mark a wholesaler order DELIVERED: 
+      that crop's KG is deducted from 'In Warehouse'
+    → 'To Receive' shows KG still coming from farmers
+    → 'To Deliver' shows KG still owed to wholesalers
+    → 'In Warehouse' = collected stock ready to dispatch"
+   
+   NP: translate all of the above into Nepali
+   
+   Styling: bg-blue-50 border border-blue-200 rounded-card p-4 text-sm text-blue-800
+
+═══════════════════════════════════
+I18N ADDITIONS — ADD TO BOTH en.json AND np.json
+═══════════════════════════════════
+"inventory": {
+  "toReceive": "To Receive",
+  "toReceiveNp": "प्राप्त गर्न",
+  "toDeliver": "To Deliver",
+  "toDeliverNp": "डेलिभर गर्न",
+  "inWarehouse": "In Warehouse",
+  "inWarehouseNp": "भण्डारमा",
+  "manualAdjustment": "Manual Warehouse Adjustment",
+  "addToWarehouse": "Add to Warehouse",
+  "removeFromWarehouse": "Remove from Warehouse",
+  "howItWorks": "How Stock Works",
+  "recentTransactions": "Recent Transactions",
+  "autoNote": "Warehouse stock updates automatically with order status changes.",
+  "manualNote": "Use manual adjustment for corrections only.",
+  "lowStockAlert": "{{count}} item(s) running low — check Inventory"
+},
+"orders": {
+  "locked": "Complete",
+  "lockedTooltip": "This order is complete and cannot be changed",
+  "terminalSupply": "Picked Up",
+  "terminalDemand": "Delivered"
+},
+"profile": {
+  "title": "My Profile",
+  "saveChanges": "Save Changes",
+  "saved": "Profile updated successfully",
+  "phoneReadOnly": "Phone number cannot be changed"
+}
+
+And in np.json:
+"inventory": {
+  "toReceive": "प्राप्त गर्न",
+  "toDeliver": "डेलिभर गर्न",
+  "inWarehouse": "भण्डारमा",
+  "manualAdjustment": "म्यानुअल भण्डार समायोजन",
+  "addToWarehouse": "भण्डारमा थप्नुहोस्",
+  "removeFromWarehouse": "भण्डारबाट हटाउनुहोस्",
+  "howItWorks": "स्टक कसरी काम गर्छ",
+  "recentTransactions": "भर्खरका लेनदेनहरू",
+  "autoNote": "अर्डर स्थिति परिवर्तनसँगै भण्डार स्टक स्वचालित रूपमा अपडेट हुन्छ।",
+  "manualNote": "सुधारको लागि मात्र म्यानुअल समायोजन प्रयोग गर्नुहोस्।",
+  "lowStockAlert": "{{count}} वस्तुको स्टक कम छ — भण्डार जाँच गर्नुहोस्"
+},
+"orders": {
+  "locked": "पूरा भयो",
+  "lockedTooltip": "यो अर्डर पूरा भयो र परिवर्तन गर्न सकिँदैन",
+  "terminalSupply": "सङ्कलन गरियो",
+  "terminalDemand": "डेलिभर गरियो"
+},
+"profile": {
+  "title": "मेरो प्रोफाइल",
+  "saveChanges": "परिवर्तन सुरक्षित गर्नुहोस्",
+  "saved": "प्रोफाइल सफलतापूर्वक अपडेट गरियो",
+  "phoneReadOnly": "फोन नम्बर परिवर्तन गर्न सकिँदैन"
+}
+
+═══════════════════════════════════
+TECHNICAL RULES
+═══════════════════════════════════
+1. Read every file before modifying — never overwrite working logic blindly
+2. The inventory summary SQL query must be a single efficient JOIN 
+   across catalog, orders, and inventory_ledger — do not make 3 
+   separate queries and merge in JavaScript
+3. All three data columns (to_receive, to_deliver, in_warehouse) must 
+   default to 0 for crops with no matching data — use COALESCE
+4. The route splitting of FarmerDashboard and WholesalerDashboard must 
+   preserve ALL existing working logic from those components
+5. After all changes verify: both client and server compile without errors
+6. Test the full loop manually: 
+   create farmer order → admin marks COLLECTED → in_warehouse increases, 
+   to_receive decreases → create wholesaler order for same crop → 
+   admin marks DELIVERED → in_warehouse decreases, to_deliver decreases
