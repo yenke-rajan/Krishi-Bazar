@@ -1,0 +1,387 @@
+Fix two specific broken features in KrishiBazar. 
+Read every relevant file before writing a single line.
+
+═══════════════════════════════════
+STEP 0 — READ THESE FILES FIRST (mandatory)
+═══════════════════════════════════
+Read ALL of these before touching anything:
+
+  server/src/routes/orders.ts
+  server/src/routes/inventory.ts
+  server/src/index.ts         (to see how routes are registered)
+  server/src/database/db.ts   (to understand the DB connection/query pattern)
+  server/src/database/schema.ts (to confirm exact table and column names)
+  server/src/middleware/auth.ts (to understand verifyToken + requireAdmin shape)
+  client/src/pages/farmer/FarmerMyOrders.tsx
+  client/src/pages/wholesaler/WholesalerMyOrders.tsx
+  client/src/pages/admin/AdminInventory.tsx
+  client/src/pages/admin/AdminDashboard.tsx
+
+Do not write anything until you have read all of these.
+
+═══════════════════════════════════
+DIAGNOSE BEFORE FIXING
+═══════════════════════════════════
+After reading the files, answer these diagnostic questions internally
+before writing any fix:
+
+For the cancel order bug:
+  Q1: Does a DELETE /api/orders/:id route exist in orders.ts?
+  Q2: Is it registered in server/src/index.ts with the correct path?
+  Q3: Does the route correctly read client_id from the JWT payload?
+      (Check what field name the JWT uses — is it `id`, `userId`, `sub`?)
+  Q4: Does the SQL DELETE use the correct column names from schema.ts?
+  Q5: Does the frontend send the Authorization header on DELETE requests?
+  Q6: What exact error does the server return? Add a console.log to find out.
+
+For the stock summary bug:
+  Q1: Does GET /api/inventory/summary exist in inventory.ts?
+  Q2: Is it registered in server/src/index.ts?
+  Q3: What does the SQL query look like — is it querying the correct
+      table names (catalog, orders, inventory_ledger)?
+  Q4: What column names does the orders table use?
+      (layer_type or order_type? status or order_status?)
+  Q5: Is the frontend calling the correct endpoint URL?
+  Q6: What does the raw API response look like when called directly?
+
+═══════════════════════════════════
+FIX 1 — CANCEL ORDER SERVER ERROR
+═══════════════════════════════════
+
+First, add a temporary debug log to find the root cause.
+In server/src/routes/orders.ts, find or create the DELETE /:id handler.
+
+Add at the very top of the handler (before any logic):
+  console.log('[DELETE /orders/:id] called');
+  console.log('[DELETE /orders/:id] params:', req.params);
+  console.log('[DELETE /orders/:id] user from JWT:', (req as any).user);
+
+This will show in the Replit server logs what the request looks like.
+
+Now write the complete, correct DELETE handler:
+
+router.delete('/:id', verifyToken, async (req, res) => {
+  try {
+    const orderId = req.params.id;
+    // Use whatever field name the JWT payload uses for user id
+    // Check your verifyToken middleware — it might be req.user.id 
+    // or req.user.userId or req.user.sub
+    const userId = (req as any).user.id;  
+    // ADJUST THIS LINE based on what you find in middleware/auth.ts
+
+    // Step 1: Find the order
+    const order = db.prepare(
+      'SELECT * FROM orders WHERE id = ?'
+    ).get(orderId) as any;
+
+    if (!order) {
+      return res.status(404).json({ error: 'Order not found' });
+    }
+
+    // Step 2: Verify ownership
+    if (order.client_id !== userId) {
+      return res.status(403).json({ 
+        error: 'You do not have permission to cancel this order' 
+      });
+    }
+
+    // Step 3: Check if cancellable
+    // SUPPLY (farmer): only cancellable at ORDER_RECEIVED
+    // DEMAND (wholesaler): only cancellable at ORDER_RECEIVED
+    const cancellableStatus = 'ORDER_RECEIVED';
+    if (order.status !== cancellableStatus) {
+      return res.status(400).json({ 
+        error: 'Order cannot be cancelled — it is already being processed',
+        error_np: 'अर्डर रद्द गर्न सकिँदैन — यो पहिले नै प्रक्रियामा छ'
+      });
+    }
+
+    // Step 4: Delete the order
+    db.prepare('DELETE FROM orders WHERE id = ?').run(orderId);
+
+    return res.status(200).json({ 
+      message: 'Order cancelled successfully',
+      message_np: 'अर्डर सफलतापूर्वक रद्द गरियो'
+    });
+
+  } catch (err) {
+    console.error('[DELETE /orders/:id] error:', err);
+    return res.status(500).json({ error: 'Server error', details: String(err) });
+  }
+});
+
+IMPORTANT: After writing this, check server/src/index.ts.
+Confirm the orders router is mounted at '/api/orders'.
+The DELETE /api/orders/:id must resolve to this handler.
+If the router is mounted at a different path, adjust accordingly.
+
+Also check: is there any route like GET /api/orders/:id defined BEFORE 
+the DELETE that might be catching the request? 
+In Express, route order matters. The DELETE router.delete('/:id') 
+must not be shadowed by a catch-all.
+
+FRONTEND FIX — verify the cancel API call:
+
+In FarmerMyOrders.tsx and WholesalerMyOrders.tsx, find the cancel handler.
+It should look like:
+
+  const handleConfirmCancel = async (orderId: string) => {
+    try {
+      setCancellingId(orderId);
+      await api.delete(`/api/orders/${orderId}`);
+      // remove from local state
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      // show success toast
+      toast.success(t('common.orderCancelled'));
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || t('errors.serverError');
+      toast.error(msg);
+    } finally {
+      setCancellingId(null);
+      setCancelConfirmId(null);
+    }
+  };
+
+Make sure:
+  1. It uses api.delete (the Axios instance with auth header) not fetch()
+  2. The URL is /api/orders/${orderId} where orderId is the UUID (order.id),
+     NOT the display order_id string like "KBF-XXXX"
+  3. The error handler shows the actual server error message, not just 
+     a generic "server error"
+
+If the frontend is sending the wrong ID field, fix it:
+  Check what field the order objects have — is it order.id (UUID) 
+  or order.order_id (display string like KBF-XXXX)?
+  The DELETE endpoint expects the UUID primary key (order.id).
+
+═══════════════════════════════════
+FIX 2 — STOCK SUMMARY SHOWS NO NUMBERS
+═══════════════════════════════════
+
+The inventory summary is returning empty or zero values.
+This is a SQL query problem. Rewrite the endpoint completely.
+
+In server/src/routes/inventory.ts, rewrite GET /summary:
+
+Read schema.ts first to confirm:
+  - The table is named 'orders' (not 'order')
+  - The catalog table is named 'catalog'
+  - The inventory table is named 'inventory_ledger'
+  - Column names: orders.layer_type, orders.status, orders.weight_kg,
+                  orders.crop_id, orders.client_id
+  - inventory_ledger columns: crop_id, delta_quantity, tracking_type
+
+Then write this as THREE separate queries joined in JavaScript
+(this avoids complex multi-join SQL bugs with SQLite):
+
+router.get('/summary', verifyToken, (req, res) => {
+  try {
+    // Query 1: Get all catalog items
+    const catalogItems = db.prepare(
+      `SELECT id, crop_name, crop_name_np, category, is_available 
+       FROM catalog 
+       ORDER BY crop_name ASC`
+    ).all() as any[];
+
+    // Query 2: Pending supply orders (farmer orders not yet collected)
+    // These are KG "to receive" from farmers
+    const toReceiveRows = db.prepare(
+      `SELECT crop_id, SUM(weight_kg) as total
+       FROM orders
+       WHERE layer_type = 'SUPPLY'
+         AND status IN ('ORDER_RECEIVED', 'DISPATCHED_TO_COLLECT')
+       GROUP BY crop_id`
+    ).all() as any[];
+
+    // Query 3: Pending demand orders (wholesaler orders not yet delivered)
+    // These are KG "to deliver" to wholesalers
+    const toDeliverRows = db.prepare(
+      `SELECT crop_id, SUM(weight_kg) as total
+       FROM orders
+       WHERE layer_type = 'DEMAND'
+         AND status IN ('ORDER_RECEIVED', 'DISPATCHED')
+       GROUP BY crop_id`
+    ).all() as any[];
+
+    // Query 4: Physical warehouse stock from inventory_ledger
+    // in_warehouse = total received - total delivered (from completed orders)
+    const warehouseRows = db.prepare(
+      `SELECT 
+         crop_id,
+         SUM(CASE WHEN tracking_type = 'RECEIVED' 
+             THEN delta_quantity ELSE 0 END) as total_received,
+         SUM(CASE WHEN tracking_type = 'DELIVERED' 
+             THEN delta_quantity ELSE 0 END) as total_delivered,
+         MAX(recorded_at) as last_updated,
+         (SELECT tracking_type FROM inventory_ledger il2 
+          WHERE il2.crop_id = inventory_ledger.crop_id 
+          ORDER BY recorded_at DESC LIMIT 1) as last_entry_type
+       FROM inventory_ledger
+       GROUP BY crop_id`
+    ).all() as any[];
+
+    // Build lookup maps for O(1) access
+    const toReceiveMap: Record<string, number> = {};
+    toReceiveRows.forEach(r => { 
+      toReceiveMap[r.crop_id] = Number(r.total) || 0; 
+    });
+
+    const toDeliverMap: Record<string, number> = {};
+    toDeliverRows.forEach(r => { 
+      toDeliverMap[r.crop_id] = Number(r.total) || 0; 
+    });
+
+    const warehouseMap: Record<string, { 
+      in_warehouse: number; 
+      last_updated: number | null;
+      last_entry_type: string | null;
+    }> = {};
+    warehouseRows.forEach(r => {
+      warehouseMap[r.crop_id] = {
+        in_warehouse: (Number(r.total_received) || 0) - 
+                      (Number(r.total_delivered) || 0),
+        last_updated: r.last_updated || null,
+        last_entry_type: r.last_entry_type || null,
+      };
+    });
+
+    // Combine into final summary
+    const summary = catalogItems.map(item => {
+      const to_receive = toReceiveMap[item.id] || 0;
+      const to_deliver = toDeliverMap[item.id] || 0;
+      const warehouse = warehouseMap[item.id];
+      const in_warehouse = warehouse?.in_warehouse || 0;
+      // needed: positive = shortfall (we owe more than we have)
+      //         negative = surplus (we have more than needed)
+      const needed = to_deliver - in_warehouse;
+
+      return {
+        crop_id: item.id,
+        crop_name: item.crop_name,
+        crop_name_np: item.crop_name_np,
+        category: item.category,
+        to_receive,
+        to_deliver,
+        in_warehouse,
+        needed,
+        last_updated: warehouse?.last_updated || null,
+        last_entry_type: warehouse?.last_entry_type || null,
+      };
+    });
+
+    console.log('[GET /inventory/summary] returning', summary.length, 'items');
+    console.log('[GET /inventory/summary] sample:', JSON.stringify(summary[0]));
+
+    return res.json({ summary });
+
+  } catch (err) {
+    console.error('[GET /inventory/summary] error:', err);
+    return res.status(500).json({ error: 'Server error', details: String(err) });
+  }
+});
+
+IMPORTANT — also check GET /api/inventory/history still works after
+this rewrite. Do not remove it.
+
+FRONTEND FIX — AdminInventory.tsx and AdminDashboard.tsx:
+
+After reading both files, verify:
+
+1. The fetch call uses the correct endpoint:
+   GET /api/inventory/summary  (not /api/inventory or /api/stock)
+
+2. The response destructuring matches what the backend returns:
+   The backend returns { summary: [...] }
+   So: const { data } = await api.get('/api/inventory/summary');
+       setSummary(data.summary);   // NOT data.data or data.items
+
+3. The table renders using the correct field names:
+   item.to_receive    (not item.toReceive or item.received)
+   item.to_deliver    (not item.toDeliver or item.delivered)
+   item.in_warehouse  (not item.warehouse or item.available_stock)
+   item.needed        (not item.required or item.balance)
+   item.crop_name and item.crop_name_np
+
+4. The useEffect has the correct dependency to trigger a refetch:
+   In AdminInventory: depends on [inventoryVersion] from InventoryContext
+   In AdminDashboard: depends on [inventoryVersion] from InventoryContext
+   
+   If InventoryContext doesn't exist or isn't wired up, use this simpler pattern:
+   
+   In AdminInventory.tsx:
+     const [refreshKey, setRefreshKey] = useState(0);
+     useEffect(() => { fetchSummary(); }, [refreshKey]);
+     // After manual log form submits: setRefreshKey(k => k + 1)
+
+5. Make sure the component is NOT showing data from a stale initial state 
+   of [] without ever calling the API. Add console.log inside the useEffect:
+   console.log('[AdminInventory] fetching summary...');
+
+If the frontend is calling the right endpoint but rendering blank,
+add this debug output temporarily just below the fetch:
+  console.log('[AdminInventory] summary data:', data);
+
+Fix any field name mismatches you find.
+
+═══════════════════════════════════
+VERIFY ROUTE REGISTRATION
+═══════════════════════════════════
+After writing all fixes, read server/src/index.ts one more time.
+
+Confirm these route registrations exist in the correct order:
+  app.use('/api/auth', authRouter);
+  app.use('/api/orders', ordersRouter);
+  app.use('/api/catalog', catalogRouter);
+  app.use('/api/inventory', inventoryRouter);
+  app.use('/api/users', usersRouter);
+
+If any router is missing, add it with the correct import.
+
+Also verify there is NO wildcard route like:
+  app.get('*', ...) 
+BEFORE the API routes, which would intercept API calls.
+Any catch-all must come AFTER all API route registrations.
+
+═══════════════════════════════════
+QUICK VALIDATION AFTER WRITING
+═══════════════════════════════════
+After all files are written, run these manual API tests using curl 
+or the Replit shell to confirm they work:
+
+Test 1 — Inventory summary (should show all 8 vegetables):
+  curl -H "Authorization: Bearer <admin_token>" \
+    http://localhost:3001/api/inventory/summary
+
+  Expected: { summary: [ { crop_name: 'Tomato', to_receive: 0, 
+              to_deliver: 0, in_warehouse: 0, needed: 0, ... }, ... ] }
+  All 8 catalog items should appear even if all values are 0.
+
+Test 2 — Get a valid order UUID first:
+  curl -H "Authorization: Bearer <farmer_token>" \
+    http://localhost:3001/api/orders/my
+  
+  Copy the 'id' field (UUID) from an ORDER_RECEIVED order.
+
+Test 3 — Cancel that order:
+  curl -X DELETE \
+    -H "Authorization: Bearer <farmer_token>" \
+    http://localhost:3001/api/orders/<UUID_FROM_ABOVE>
+  
+  Expected: { message: 'Order cancelled successfully' }
+  NOT a 500 error.
+
+If Test 1 fails: the SQL query or route registration is wrong.
+If Test 3 fails: log the exact error from the server console and fix it.
+
+═══════════════════════════════════
+TECHNICAL RULES
+═══════════════════════════════════
+1. Read every file before modifying — confirm actual column and table names
+2. Use better-sqlite3 synchronous API (.prepare().get(), .prepare().all(), 
+   .prepare().run()) — NOT async/await with db queries
+3. JWT user field: check your actual middleware — do NOT assume it's req.user.id
+   without reading auth.ts first
+4. The cancel endpoint must use the UUID primary key (order.id), 
+   not the display string (order.order_id like "KBF-XXXX")
+5. Console.log every route handler entry and any errors during this debug pass
+6. Do not change any working features while fixing these two issues
