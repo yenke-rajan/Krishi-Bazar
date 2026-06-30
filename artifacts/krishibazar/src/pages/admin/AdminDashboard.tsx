@@ -38,6 +38,12 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${cls[status] ?? 'bg-gray-50 text-gray-600'}`}>{short[status] ?? status}</span>;
 }
 
+function NeededCell({ needed, lang }: { needed: number; lang: 'en' | 'np' }) {
+  if (needed === 0) return <span className="text-kb-muted text-[12px]">{lang === 'np' ? 'सन्तुलित' : 'Balanced'}</span>;
+  if (needed > 0) return <span className="text-red-600 text-[12px] font-semibold">+{needed}</span>;
+  return <span className="text-green-600 text-[12px] font-semibold">{needed}</span>;
+}
+
 export default function AdminDashboard() {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
@@ -70,13 +76,12 @@ export default function AdminDashboard() {
     }).finally(() => setLoading(false));
   }, [token, inventoryVersion]);
 
-  const lowStockItems = stockSummary.filter((s) => s.available_stock < 10);
+  const lowStockItems = stockSummary.filter((s) => s.in_warehouse < 10);
 
   return (
     <AdminLayout>
       <h1 className="text-[20px] font-bold text-kb-text mb-5">{t('admin.dashboard')}</h1>
 
-      {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         <StatCard label={t('admin.activeOrders')} value={loading ? '—' : stats.active} icon={ShoppingCart} color="bg-kb-forest" />
         <StatCard label={t('admin.totalFarmers')} value={loading ? '—' : stats.farmers} icon={Users} color="bg-emerald-500" />
@@ -84,7 +89,6 @@ export default function AdminDashboard() {
         <StatCard label={t('admin.totalCatalog')} value={loading ? '—' : stats.catalog} icon={Leaf} color="bg-violet-500" />
       </div>
 
-      {/* Low stock alert */}
       {!loading && lowStockItems.length > 0 && (
         <Link href="/admin/inventory">
           <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-center gap-3 cursor-pointer hover:bg-amber-100 transition-colors">
@@ -133,20 +137,22 @@ export default function AdminDashboard() {
                 <thead>
                   <tr className="text-kb-muted text-[11px] uppercase tracking-wide">
                     <th className="text-left pb-2">{t('inventory.cropName')}</th>
-                    <th className="text-right pb-2">{t('admin.received')}</th>
-                    <th className="text-right pb-2">{t('admin.delivered')}</th>
-                    <th className="text-right pb-2">{t('admin.available')}</th>
+                    <th className="text-right pb-2 whitespace-nowrap">To Recv</th>
+                    <th className="text-right pb-2 whitespace-nowrap">Warehouse</th>
+                    <th className="text-right pb-2">Needed</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stockSummary.map((s, i) => (
                     <tr key={s.crop_id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/50'}>
                       <td className="py-1.5 font-medium text-kb-text">{lang === 'np' ? s.crop_name_np : s.crop_name}</td>
-                      <td className="py-1.5 text-right text-kb-muted">{s.received_total}</td>
-                      <td className="py-1.5 text-right text-kb-muted">{s.delivered_total}</td>
-                      <td className={`py-1.5 text-right font-semibold ${s.available_stock < 10 ? 'text-red-600' : s.available_stock < 50 ? 'text-amber-600' : 'text-green-600'}`}>
-                        {s.available_stock < 10 && <span className="mr-1">⚠️</span>}
-                        {s.available_stock}
+                      <td className="py-1.5 text-right text-kb-muted">{s.to_receive}</td>
+                      <td className={`py-1.5 text-right font-semibold ${s.in_warehouse < 10 ? 'text-red-600' : s.in_warehouse < 50 ? 'text-amber-600' : 'text-green-600'}`}>
+                        {s.in_warehouse < 10 && <span className="mr-0.5">⚠️</span>}
+                        {s.in_warehouse}
+                      </td>
+                      <td className="py-1.5 text-right">
+                        <NeededCell needed={s.needed} lang={lang} />
                       </td>
                     </tr>
                   ))}

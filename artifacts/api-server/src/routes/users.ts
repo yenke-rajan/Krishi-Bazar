@@ -28,6 +28,35 @@ router.get("/users", verifyToken, requireRole("ADMIN"), async (_req, res): Promi
   res.json(users.map(userToPublic));
 });
 
+router.patch("/users/me", verifyToken, async (req, res): Promise<void> => {
+  const userId = req.user!.id;
+  const { full_name, email, primary_address } = req.body;
+
+  const updateData: Partial<typeof usersTable.$inferInsert> = {};
+  if (full_name !== undefined) updateData.full_name = String(full_name).trim();
+  if (email !== undefined) updateData.email = email ? String(email).trim() : null;
+  if (primary_address !== undefined) updateData.primary_address = primary_address ? String(primary_address).trim() : null;
+
+  if (Object.keys(updateData).length === 0) {
+    res.status(400).json({ error: "No valid fields to update" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(usersTable)
+    .set(updateData)
+    .where(eq(usersTable.id, userId))
+    .returning();
+
+  if (!updated) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+
+  req.log.info({ userId }, "User profile updated");
+  res.json(userToPublic(updated));
+});
+
 router.post("/users", verifyToken, requireRole("ADMIN"), async (req, res): Promise<void> => {
   const { phone, password, full_name, email, role, primary_address } = req.body;
 

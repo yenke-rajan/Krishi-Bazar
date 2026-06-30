@@ -3,8 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { useInventory } from '@/context/InventoryContext';
 import { AdminLayout } from './AdminLayout';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePagination } from '@/hooks/usePagination';
 
 function relativeTime(ts: number, lang: 'en' | 'np'): string {
   const diff = Math.floor(Date.now() / 1000 - ts);
@@ -21,6 +22,24 @@ function relativeTime(ts: number, lang: 'en' | 'np'): string {
   return lang === 'np' ? `${d} दिन अघि` : `${d} days ago`;
 }
 
+function NeededCell({ needed, lang }: { needed: number; lang: 'en' | 'np' }) {
+  if (needed === 0) {
+    return <span className="text-kb-muted text-[12px]">{lang === 'np' ? 'सन्तुलित' : 'Balanced'}</span>;
+  }
+  if (needed > 0) {
+    return (
+      <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
+        ⚠️ +{needed} KG
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
+      {needed} KG
+    </span>
+  );
+}
+
 export default function AdminInventory() {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
@@ -34,6 +53,7 @@ export default function AdminInventory() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [stockSearch, setStockSearch] = useState('');
 
   const [cropId, setCropId] = useState('');
   const [qty, setQty] = useState('');
@@ -65,7 +85,6 @@ export default function AdminInventory() {
   const handleHistoryToggle = () => {
     const next = !historyOpen;
     setHistoryOpen(next);
-    if (next && history.length === 0) loadHistory();
     if (next) loadHistory();
   };
 
@@ -91,7 +110,15 @@ export default function AdminInventory() {
     }
   };
 
-  const stockColor = (n: number) =>
+  const filteredSummary = summary.filter((s) => {
+    if (!stockSearch) return true;
+    const q = stockSearch.toLowerCase();
+    return s.crop_name.toLowerCase().includes(q) || s.crop_name_np.includes(q);
+  });
+
+  const { visible: historyVisible, hasMore: historyHasMore, showAll: historyShowAll, setShowAll: setHistoryShowAll, remaining: historyRemaining } = usePagination(history, 5);
+
+  const warehouseColor = (n: number) =>
     n > 50 ? 'text-green-600' : n >= 10 ? 'text-amber-600' : 'text-red-600';
 
   return (
@@ -124,10 +151,7 @@ export default function AdminInventory() {
               <div>
                 <label className="block text-[12px] font-semibold text-kb-muted mb-1">{t('inventory.quantityKg')}</label>
                 <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  value={qty}
+                  type="number" min={0.1} step={0.1} value={qty}
                   onChange={(e) => setQty(e.target.value)}
                   placeholder="0"
                   className="w-full border border-kb-border rounded-xl px-3 py-2.5 text-[13px] outline-none focus:border-kb-forest"
@@ -137,24 +161,14 @@ export default function AdminInventory() {
               <div>
                 <label className="block text-[12px] font-semibold text-kb-muted mb-2">{t('inventory.type')}</label>
                 <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setTrackingType('RECEIVED')}
-                    className={[
-                      'flex-1 py-2.5 rounded-xl text-[13px] font-semibold border-2 transition-all',
-                      trackingType === 'RECEIVED' ? 'bg-green-50 border-green-500 text-green-700' : 'border-kb-border text-kb-muted',
-                    ].join(' ')}
-                  >
+                  <button type="button" onClick={() => setTrackingType('RECEIVED')}
+                    className={['flex-1 py-2.5 rounded-xl text-[13px] font-semibold border-2 transition-all',
+                      trackingType === 'RECEIVED' ? 'bg-green-50 border-green-500 text-green-700' : 'border-kb-border text-kb-muted'].join(' ')}>
                     ✅ {t('admin.received')}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setTrackingType('DELIVERED')}
-                    className={[
-                      'flex-1 py-2.5 rounded-xl text-[13px] font-semibold border-2 transition-all',
-                      trackingType === 'DELIVERED' ? 'bg-red-50 border-red-500 text-red-700' : 'border-kb-border text-kb-muted',
-                    ].join(' ')}
-                  >
+                  <button type="button" onClick={() => setTrackingType('DELIVERED')}
+                    className={['flex-1 py-2.5 rounded-xl text-[13px] font-semibold border-2 transition-all',
+                      trackingType === 'DELIVERED' ? 'bg-red-50 border-red-500 text-red-700' : 'border-kb-border text-kb-muted'].join(' ')}>
                     🚚 {t('admin.delivered')}
                   </button>
                 </div>
@@ -162,20 +176,14 @@ export default function AdminInventory() {
 
               <div>
                 <label className="block text-[12px] font-semibold text-kb-muted mb-1">{t('common.notes')}</label>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={2}
+                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2}
                   placeholder={t('common.notes')}
                   className="w-full border border-kb-border rounded-xl px-3 py-2.5 text-[13px] outline-none focus:border-kb-forest resize-none"
                 />
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-kb-forest text-white rounded-xl py-3 font-semibold text-[14px] disabled:opacity-50"
-              >
+              <button type="submit" disabled={submitting}
+                className="w-full bg-kb-forest text-white rounded-xl py-3 font-semibold text-[14px] disabled:opacity-50">
                 {submitting ? t('common.loading') : t('inventory.logEntry')}
               </button>
             </form>
@@ -186,16 +194,27 @@ export default function AdminInventory() {
         <div className="lg:col-span-3">
           <div className="bg-white rounded-xl border border-kb-border overflow-hidden">
             <div className="px-4 py-3 border-b border-kb-border">
-              <h2 className="text-[15px] font-bold text-kb-text">{t('admin.stockSummary')}</h2>
+              <h2 className="text-[15px] font-bold text-kb-text mb-3">{t('admin.stockSummary')}</h2>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-kb-muted w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder={lang === 'np' ? 'उपज खोज्नुहोस्...' : 'Search crop...'}
+                  value={stockSearch}
+                  onChange={(e) => setStockSearch(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border border-kb-border rounded-xl text-sm focus:outline-none focus:border-kb-forest focus:ring-2 focus:ring-kb-forest/20"
+                />
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[13px]">
                 <thead>
                   <tr className="bg-kb-cream/60 border-b border-kb-border">
                     <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('inventory.cropName')}</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('admin.received')}</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('admin.delivered')}</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('admin.available')}</th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">To Receive</th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">To Deliver</th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">In Warehouse</th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">Needed</th>
                     <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('inventory.lastUpdated')}</th>
                   </tr>
                 </thead>
@@ -203,20 +222,23 @@ export default function AdminInventory() {
                   {loading ? (
                     [...Array(5)].map((_, i) => (
                       <tr key={i}>
-                        <td colSpan={5} className="px-4 py-3"><div className="h-4 bg-kb-cream rounded animate-pulse" /></td>
+                        <td colSpan={6} className="px-4 py-3"><div className="h-4 bg-kb-cream rounded animate-pulse" /></td>
                       </tr>
                     ))
-                  ) : summary.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-kb-muted">No inventory data</td></tr>
+                  ) : filteredSummary.length === 0 ? (
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-kb-muted">No inventory data</td></tr>
                   ) : (
-                    summary.map((s, i) => (
+                    filteredSummary.map((s, i) => (
                       <tr key={s.crop_id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
                         <td className="px-4 py-3 font-medium text-kb-text">{lang === 'np' ? s.crop_name_np : s.crop_name}</td>
-                        <td className="px-4 py-3 text-right text-kb-muted">{s.received_total} KG</td>
-                        <td className="px-4 py-3 text-right text-kb-muted">{s.delivered_total} KG</td>
-                        <td className={`px-4 py-3 text-right font-bold ${stockColor(s.available_stock)}`}>
-                          {s.available_stock < 10 && <span className="mr-1">⚠️</span>}
-                          {s.available_stock} KG
+                        <td className="px-4 py-3 text-right text-kb-muted">{s.to_receive} KG</td>
+                        <td className="px-4 py-3 text-right text-kb-muted">{s.to_deliver} KG</td>
+                        <td className={`px-4 py-3 text-right font-bold ${warehouseColor(s.in_warehouse)}`}>
+                          {s.in_warehouse < 10 && <span className="mr-1">⚠️</span>}
+                          {s.in_warehouse} KG
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <NeededCell needed={s.needed} lang={lang} />
                         </td>
                         <td className="px-4 py-3 text-right text-[11px] text-kb-muted whitespace-nowrap">
                           {s.last_updated ? (
@@ -257,23 +279,43 @@ export default function AdminInventory() {
             ) : history.length === 0 ? (
               <p className="px-5 py-8 text-center text-kb-muted text-[13px]">No transactions yet</p>
             ) : (
-              <div className="divide-y divide-kb-border/50">
-                {history.map((entry) => (
-                  <div key={entry.id} className="flex items-center gap-4 px-5 py-3 text-[13px]">
-                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${entry.tracking_type === 'RECEIVED' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                      {entry.tracking_type}
-                    </span>
-                    <span className="font-medium text-kb-text flex-1 min-w-0 truncate">
-                      {lang === 'np' ? entry.crop_name_np : entry.crop_name}
-                    </span>
-                    <span className="font-semibold text-kb-text shrink-0">{entry.delta_quantity} KG</span>
-                    <span className="text-kb-muted shrink-0 text-[12px]">{relativeTime(entry.recorded_at, lang)}</span>
-                    {entry.notes && (
-                      <span className="text-kb-muted text-[11px] max-w-[200px] truncate" title={entry.notes}>{entry.notes}</span>
-                    )}
+              <>
+                <div className="divide-y divide-kb-border/50">
+                  {historyVisible.map((entry) => (
+                    <div key={entry.id} className="flex items-center gap-4 px-5 py-3 text-[13px]">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${entry.tracking_type === 'RECEIVED' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                        {entry.tracking_type}
+                      </span>
+                      <span className="font-medium text-kb-text flex-1 min-w-0 truncate">
+                        {lang === 'np' ? entry.crop_name_np : entry.crop_name}
+                      </span>
+                      <span className="font-semibold text-kb-text shrink-0">{entry.delta_quantity} KG</span>
+                      <span className="text-kb-muted shrink-0 text-[12px]">{relativeTime(entry.recorded_at, lang)}</span>
+                      {entry.notes && (
+                        <span className="text-kb-muted text-[11px] max-w-[200px] truncate" title={entry.notes}>{entry.notes}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {historyHasMore && !historyShowAll && (
+                  <div className="px-5 py-3 border-t border-kb-border/50">
+                    <button onClick={() => setHistoryShowAll(true)}
+                      className="w-full py-2 text-sm text-kb-muted hover:text-kb-forest flex items-center justify-center gap-2">
+                      <ChevronDown className="w-4 h-4" />
+                      {lang === 'np' ? `थप हेर्नुहोस् (${historyRemaining} थप)` : `See More (${historyRemaining} more)`}
+                    </button>
                   </div>
-                ))}
-              </div>
+                )}
+                {historyShowAll && historyHasMore && (
+                  <div className="px-5 py-3 border-t border-kb-border/50">
+                    <button onClick={() => setHistoryShowAll(false)}
+                      className="w-full py-2 text-sm text-kb-muted hover:text-kb-forest flex items-center justify-center gap-2">
+                      <ChevronUp className="w-4 h-4" />
+                      {lang === 'np' ? 'कम देखाउनुहोस्' : 'See Less'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

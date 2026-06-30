@@ -11,40 +11,66 @@ function toUnixSeconds(): number {
 }
 
 async function buildStockSummary() {
-  const crops = await db.select().from(catalogTable).orderBy(catalogTable.crop_name);
-  return Promise.all(
-    crops.map(async (crop) => {
-      const [row] = await db
-        .select({
-          received: sql<number>`COALESCE(SUM(CASE WHEN ${inventoryLedgerTable.tracking_type} = 'RECEIVED' THEN ${inventoryLedgerTable.delta_quantity} ELSE 0 END), 0)`,
-          delivered: sql<number>`COALESCE(SUM(CASE WHEN ${inventoryLedgerTable.tracking_type} = 'DELIVERED' THEN ${inventoryLedgerTable.delta_quantity} ELSE 0 END), 0)`,
-          last_updated: sql<number | null>`MAX(${inventoryLedgerTable.recorded_at})`,
-        })
-        .from(inventoryLedgerTable)
-        .where(eq(inventoryLedgerTable.crop_id, crop.id));
+  const result = await db.execute(sql`
+    SELECT
+      c.id AS crop_id,
+      c.crop_name,
+      c.crop_name_np,
+      c.category,
+      COALESCE(s.to_receive, 0)::float AS to_receive,
+      COALESCE(d.to_deliver, 0)::float AS to_deliver,
+      GREATEST(COALESCE(w.in_warehouse, 0), 0)::float AS in_warehouse,
+      w.last_updated,
+      last_il.tracking_type AS last_entry_type
+    FROM catalog c
+    LEFT JOIN (
+      SELECT crop_id, SUM(weight_kg) AS to_receive
+      FROM orders
+      WHERE layer_type = 'SUPPLY' AND status IN ('ORDER_RECEIVED', 'DISPATCHED_TO_COLLECT')
+      GROUP BY crop_id
+    ) s ON s.crop_id = c.id
+    LEFT JOIN (
+      SELECT crop_id, SUM(weight_kg) AS to_deliver
+      FROM orders
+      WHERE layer_type = 'DEMAND' AND status IN ('ORDER_RECEIVED', 'DISPATCHED')
+      GROUP BY crop_id
+    ) d ON d.crop_id = c.id
+    LEFT JOIN (
+      SELECT
+        crop_id,
+        SUM(CASE WHEN tracking_type = 'RECEIVED' THEN delta_quantity ELSE 0 END) -
+        SUM(CASE WHEN tracking_type = 'DELIVERED' THEN delta_quantity ELSE 0 END) AS in_warehouse,
+        MAX(recorded_at) AS last_updated
+      FROM inventory_ledger
+      GROUP BY crop_id
+    ) w ON w.crop_id = c.id
+    LEFT JOIN LATERAL (
+      SELECT tracking_type
+      FROM inventory_ledger
+      WHERE crop_id = c.id
+      ORDER BY recorded_at DESC
+      LIMIT 1
+    ) last_il ON true
+    ORDER BY c.crop_name
+  `);
 
-      const [lastEntry] = await db
-        .select({ tracking_type: inventoryLedgerTable.tracking_type })
-        .from(inventoryLedgerTable)
-        .where(eq(inventoryLedgerTable.crop_id, crop.id))
-        .orderBy(desc(inventoryLedgerTable.recorded_at))
-        .limit(1);
-
-      const received_total = Number(row?.received ?? 0);
-      const delivered_total = Number(row?.delivered ?? 0);
-      return {
-        crop_id: crop.id,
-        crop_name: crop.crop_name,
-        crop_name_np: crop.crop_name_np,
-        category: crop.category,
-        received_total,
-        delivered_total,
-        available_stock: Math.max(0, received_total - delivered_total),
-        last_updated: row?.last_updated ?? null,
-        last_entry_type: lastEntry?.tracking_type ?? null,
-      };
-    }),
-  );
+  return (result.rows as any[]).map((row) => {
+    const to_receive = Number(row.to_receive ?? 0);
+    const to_deliver = Number(row.to_deliver ?? 0);
+    const in_warehouse = Math.max(0, Number(row.in_warehouse ?? 0));
+    return {
+      crop_id: row.crop_id as string,
+      crop_name: row.crop_name as string,
+      crop_name_np: row.crop_name_np as string,
+      category: row.category as string,
+      to_receive,
+      to_deliver,
+      in_warehouse,
+      needed: to_deliver - in_warehouse,
+      last_updated: row.last_updated ? Number(row.last_updated) : null,
+      last_entry_type: (row.last_entry_type as string | null) ?? null,
+    };
+  });
 }
 
 router.get("/inventory/summary", verifyToken, async (_req, res): Promise<void> => {
@@ -79,7 +105,7 @@ router.get("/inventory", verifyToken, async (_req, res): Promise<void> => {
     crop_name: s.crop_name,
     crop_name_np: s.crop_name_np,
     category: s.category,
-    available_kg: s.available_stock,
+    available_kg: s.in_warehouse,
   })));
 });
 

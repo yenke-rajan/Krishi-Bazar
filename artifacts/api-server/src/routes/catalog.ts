@@ -10,6 +10,7 @@ import {
   UpdateCatalogItemResponse,
 } from "@workspace/api-zod";
 import { verifyToken, requireRole } from "../middlewares/auth";
+import { upload } from "../middlewares/upload";
 
 const router: IRouter = Router();
 
@@ -25,6 +26,21 @@ router.get("/catalog", async (_req, res): Promise<void> => {
 
   res.json(GetCatalogResponse.parse(items));
 });
+
+router.post(
+  "/catalog/upload-image",
+  verifyToken,
+  requireRole("ADMIN"),
+  upload.single("image"),
+  (req, res): void => {
+    if (!req.file) {
+      res.status(400).json({ error: "No file uploaded" });
+      return;
+    }
+    const imageUrl = `/api/uploads/${req.file.filename}`;
+    res.json({ imageUrl });
+  },
+);
 
 router.post(
   "/catalog",

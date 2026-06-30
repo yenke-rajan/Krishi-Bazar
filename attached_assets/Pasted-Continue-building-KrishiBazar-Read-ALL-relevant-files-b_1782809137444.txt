@@ -1,0 +1,671 @@
+Continue building KrishiBazar. Read ALL relevant files before writing anything.
+Do not break existing working features. Fix all issues listed below precisely.
+
+═══════════════════════════════════
+STEP 0 — READ THESE FILES FIRST (required before any writes)
+═══════════════════════════════════
+Read all of these before touching any file:
+  client/src/App.tsx
+  client/src/pages/farmer/FarmerLayout.tsx (if exists)
+  client/src/pages/farmer/FarmerPlaceOrder.tsx (if exists)
+  client/src/pages/farmer/FarmerMyOrders.tsx (if exists)
+  client/src/pages/wholesaler/WholesalerLayout.tsx (if exists)
+  client/src/pages/wholesaler/WholesalerPlaceOrder.tsx (if exists)
+  client/src/pages/wholesaler/WholesalerMyOrders.tsx (if exists)
+  client/src/pages/shared/UserProfile.tsx (if exists)
+  client/src/pages/auth/LoginPage.tsx
+  client/src/pages/admin/AdminInventory.tsx
+  client/src/pages/admin/AdminCatalog.tsx
+  server/src/routes/orders.ts
+  server/src/routes/catalog.ts
+  server/src/index.ts
+
+═══════════════════════════════════
+FIX 1 — LOGIN PAGE: REMOVE "(COMING SOON)"
+═══════════════════════════════════
+In client/src/pages/auth/LoginPage.tsx:
+  Find and completely remove any "(Coming soon)" or "Coming soon" text.
+  The forgot password link should either:
+    Option A: be removed entirely from the UI, OR
+    Option B: be replaced with a plain greyed-out non-clickable text 
+              styled as: className="text-xs text-kb-muted cursor-default"
+              with NO tooltip or parenthetical label
+  Do not show any "(Coming soon)" anywhere in the app.
+
+═══════════════════════════════════
+FIX 2 — ROUTING: ALL FARMER & WHOLESALER SUB-ROUTES 404
+═══════════════════════════════════
+This is the most critical fix. The routes /farmer/place-order, 
+/farmer/my-orders, /farmer/profile, /wholesaler/place-order,
+/wholesaler/my-orders, /wholesaler/profile all return 404.
+
+Read App.tsx carefully. Identify the exact cause:
+  - If the nested routes exist but layouts are missing <Outlet />, add it
+  - If the routes are not defined at all, define them
+  - If components are not being imported in App.tsx, add the imports
+
+REQUIRED FINAL ROUTING STRUCTURE in App.tsx:
+
+import { Routes, Route, Navigate } from 'react-router-dom';
+import FarmerLayout from './pages/farmer/FarmerLayout';
+import FarmerPlaceOrder from './pages/farmer/FarmerPlaceOrder';
+import FarmerMyOrders from './pages/farmer/FarmerMyOrders';
+import WholesalerLayout from './pages/wholesaler/WholesalerLayout';
+import WholesalerPlaceOrder from './pages/wholesaler/WholesalerPlaceOrder';
+import WholesalerMyOrders from './pages/wholesaler/WholesalerMyOrders';
+import UserProfile from './pages/shared/UserProfile';
+
+Inside <Routes>:
+
+  {/* FARMER ROUTES */}
+  <Route
+    path="/farmer"
+    element={
+      <ProtectedRoute allowedRole="FARMER">
+        <FarmerLayout />
+      </ProtectedRoute>
+    }
+  >
+    <Route index element={<Navigate to="/farmer/place-order" replace />} />
+    <Route path="place-order" element={<FarmerPlaceOrder />} />
+    <Route path="my-orders" element={<FarmerMyOrders />} />
+    <Route path="profile" element={<UserProfile />} />
+  </Route>
+
+  {/* WHOLESALER ROUTES */}
+  <Route
+    path="/wholesaler"
+    element={
+      <ProtectedRoute allowedRole="WHOLESALER">
+        <WholesalerLayout />
+      </ProtectedRoute>
+    }
+  >
+    <Route index element={<Navigate to="/wholesaler/place-order" replace />} />
+    <Route path="place-order" element={<WholesalerPlaceOrder />} />
+    <Route path="my-orders" element={<WholesalerMyOrders />} />
+    <Route path="profile" element={<UserProfile />} />
+  </Route>
+
+ProtectedRoute must accept allowedRole prop (string) and redirect
+to '/' if user.role !== allowedRole. Read existing ProtectedRoute 
+component and update its props interface to match.
+
+REQUIRED: Both FarmerLayout and WholesalerLayout MUST have <Outlet />
+inside their main content area. If either file is missing this, add it.
+
+FarmerLayout structure:
+  <div className="min-h-screen bg-kb-cream flex flex-col">
+    <main className="flex-1 overflow-y-auto pb-20">
+      <Outlet />        {/* THIS IS REQUIRED — do not omit */}
+    </main>
+    <BottomNav role="FARMER" />
+  </div>
+
+WholesalerLayout structure:
+  <div className="min-h-screen bg-kb-cream flex flex-col">
+    <main className="flex-1 overflow-y-auto pb-20">
+      <Outlet />        {/* THIS IS REQUIRED — do not omit */}
+    </main>
+    <BottomNav role="WHOLESALER" />
+  </div>
+
+BottomNav component (create at client/src/components/layout/BottomNav.tsx
+if it does not exist, or verify it exists and works):
+
+Props: role: 'FARMER' | 'WHOLESALER'
+
+Render 3 tabs using React Router NavLink (NOT <a href>, NOT window.location):
+  FARMER tabs:
+    { to: '/farmer/place-order', icon: ShoppingBasket, labelKey: 'orders.placeOrder' }
+    { to: '/farmer/my-orders',   icon: ClipboardList,  labelKey: 'orders.myOrders' }
+    { to: '/farmer/profile',     icon: User,           labelKey: 'nav.profile' }
+  WHOLESALER tabs:
+    { to: '/wholesaler/place-order', icon: ShoppingBasket, labelKey: 'orders.placeOrder' }
+    { to: '/wholesaler/my-orders',   icon: ClipboardList,  labelKey: 'orders.myOrders' }
+    { to: '/wholesaler/profile',     icon: User,           labelKey: 'nav.profile' }
+
+NavLink active class: text-kb-forest
+NavLink inactive class: text-kb-muted
+Container: fixed bottom-0 left-0 right-0 z-50 bg-white border-t 
+           border-kb-border h-16 flex items-center
+
+UserProfile page (client/src/pages/shared/UserProfile.tsx):
+If it does not exist, create it with:
+  - Page header: "My Profile" / "मेरो प्रोफाइल"
+  - Display: Full Name (editable input), Phone (static text, read-only),
+             Email (editable), Location (editable, label changes by role)
+  - Save button → PATCH /api/users/me
+  - Success toast on save
+  - Backend endpoint PATCH /api/users/me: update full_name, email, 
+    primary_address only. Return updated user. Auth required.
+
+═══════════════════════════════════
+FIX 3 — DOUBLE CLICK BUG ON PLACE ORDER
+═══════════════════════════════════
+In both FarmerPlaceOrder.tsx and WholesalerPlaceOrder.tsx:
+
+The catalog items only appear after clicking twice. This is a state
+initialization bug — the selected crop state is likely null and the 
+click handler sets it first before rendering.
+
+Root cause is almost always one of these — check which applies:
+  A) useEffect fetching catalog has an empty dependency array but 
+     the data is not available on first render, causing a blank grid
+     until a re-render is triggered
+  B) The grid renders based on a filtered list that starts empty 
+     because the filter state initializes before data loads
+
+FIX:
+  1. Ensure the catalog fetch useEffect runs on component mount 
+     with no dependency issues:
+       useEffect(() => { fetchCatalog(); }, []);
+  
+  2. Show a loading skeleton (3-4 gray rounded rectangles in a 2-col grid)
+     while the fetch is in progress (use a boolean isLoading state)
+  
+  3. After fetch completes, set the data directly into state and 
+     render immediately — do not gate rendering on any selection state
+  
+  4. The crop selection should only track WHICH item is selected,
+     not whether to show the grid. The grid always shows after load.
+
+═══════════════════════════════════
+FIX 4 — SEARCH BAR IN PLACE ORDER (FARMER & WHOLESALER)
+═══════════════════════════════════
+Add to both FarmerPlaceOrder.tsx and WholesalerPlaceOrder.tsx
+in the Step 1 (Select Produce) section:
+
+A search bar ABOVE the product grid:
+  <div className="relative mb-4">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 
+                       text-kb-muted w-4 h-4" />
+    <input
+      type="text"
+      placeholder={lang === 'np' ? "उपज खोज्नुहोस्..." : "Search produce..."}
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      className="w-full pl-9 pr-4 py-2.5 border border-kb-border 
+                 rounded-input bg-white text-sm focus:outline-none 
+                 focus:border-kb-forest focus:ring-2 focus:ring-kb-forest/20"
+    />
+    {searchQuery && (
+      <button onClick={() => setSearchQuery('')}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-kb-muted">
+        <X className="w-4 h-4" />
+      </button>
+    )}
+  </div>
+
+Filter logic (client-side, no API call needed):
+  const filteredCatalog = catalog.filter(item => {
+    const q = searchQuery.toLowerCase();
+    return (
+      item.crop_name.toLowerCase().includes(q) ||
+      item.crop_name_np.includes(q)
+    );
+  });
+  
+Render filteredCatalog in the grid instead of catalog directly.
+
+If filteredCatalog is empty and searchQuery is not empty, show:
+  <div className="col-span-2 text-center py-8 text-kb-muted">
+    <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
+    <p className="text-sm">
+      {lang === 'np' ? 'कुनै वस्तु फेला परेन' : 'No items found'}
+    </p>
+  </div>
+
+For WholesalerPlaceOrder only — category filter tabs (All / Vegetables / 
+Pickles) must work COMBINED with the search, not independently:
+  const filteredCatalog = catalog.filter(item => {
+    const matchesCategory = activeCategory === 'ALL' || 
+                            item.category === activeCategory;
+    const matchesSearch = !searchQuery || 
+      item.crop_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.crop_name_np.includes(searchQuery);
+    return matchesCategory && matchesSearch;
+  });
+
+═══════════════════════════════════
+FIX 5 — CANCEL ORDER FUNCTIONALITY
+═══════════════════════════════════
+
+BACKEND — Add DELETE /api/orders/:id (cancel order):
+  In server/src/routes/orders.ts:
+  
+  DELETE /api/orders/:id
+    Auth: required (must be the order owner — compare client_id with JWT id)
+    Rules:
+      SUPPLY (Farmer) orders: can only cancel if status is 'ORDER_RECEIVED'
+        If status is DISPATCHED_TO_COLLECT or COLLECTED: return 400
+        Error: { error: 'Order cannot be cancelled — pickup is already in progress' }
+      DEMAND (Wholesaler) orders: can only cancel if status is 'ORDER_RECEIVED'
+        If status is DISPATCHED or DELIVERED: return 400
+        Error: { error: 'Order cannot be cancelled — delivery is already in progress' }
+      If order does not belong to this user: return 403
+    Action: DELETE the order row from orders table
+    Returns 200: { message: 'Order cancelled successfully' }
+
+FRONTEND — Farmer My Orders (FarmerMyOrders.tsx):
+  On each order card where status === 'ORDER_RECEIVED':
+    Show a "Cancel Order" button at the bottom of the card:
+      className="text-xs text-red-500 border border-red-200 
+                 rounded-input px-3 py-1.5 hover:bg-red-50 
+                 flex items-center gap-1 mt-3"
+      Icon: X (Lucide), 12px
+      Label: "Cancel Order" / "अर्डर रद्द गर्नुहोस्"
+    
+    On click: show inline confirmation INSIDE the card (not a modal):
+      Replace the button with:
+        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-input">
+          <p className="text-xs text-red-700 mb-2 font-medium">
+            "Cancel this order?" / "यो अर्डर रद्द गर्ने?"
+          </p>
+          <div className="flex gap-2">
+            <button onClick={handleConfirmCancel} 
+              className="text-xs bg-red-500 text-white px-3 py-1 rounded-input">
+              "Yes, Cancel" / "हो, रद्द गर्नुहोस्"
+            </button>
+            <button onClick={() => setCancelConfirmId(null)}
+              className="text-xs border border-kb-border px-3 py-1 rounded-input">
+              "Keep Order" / "राख्नुहोस्"
+            </button>
+          </div>
+        </div>
+    
+    On confirm: DELETE /api/orders/:id → remove from local list + 
+                show success toast "Order cancelled" / "अर्डर रद्द गरियो"
+    
+    For orders with status DISPATCHED_TO_COLLECT or COLLECTED:
+      Do NOT show the cancel button at all on those cards.
+
+FRONTEND — Wholesaler My Orders (WholesalerMyOrders.tsx):
+  Same logic as above but:
+    Can cancel only when status === 'ORDER_RECEIVED'
+    Cannot cancel when DISPATCHED or DELIVERED
+    Same inline confirmation pattern
+
+═══════════════════════════════════
+FIX 6 — ADMIN STOCK SUMMARY REDESIGN
+═══════════════════════════════════
+Read AdminInventory.tsx and AdminDashboard.tsx before editing.
+
+COLUMN RENAME + LOGIC CHANGE:
+  Old column "Received" / "To Receive" → keep as "To Receive"
+    (shows KG from pending SUPPLY orders not yet collected)
+  Old column "Delivered" / "To Deliver" → keep as "To Deliver"  
+    (shows KG from pending DEMAND orders not yet dispatched)
+  Old column "Available Stock" / "In Warehouse" → RENAME to "Needed"
+    NEW CALCULATION for "Needed":
+      needed = to_deliver - in_warehouse
+      If needed > 0: we need MORE stock (shown as +X in red/amber)
+                     means: wholesalers want X more KG than we currently have
+      If needed < 0: we have SURPLUS (shown as -X in green)
+                     means: we have X KG more than currently needed
+      If needed === 0: perfectly balanced (shown as "0" in gray)
+    
+    Display format:
+      needed > 0:  "+{needed} KG" with text-red-600 bg-red-50 
+                   and ⚠️ icon — means stock shortfall
+      needed < 0:  "{needed} KG" (negative number) with text-kb-success 
+                   bg-green-50 — means surplus stock
+      needed === 0: "Balanced" / "सन्तुलित" with text-kb-muted
+
+  Add a 4th column "In Warehouse":
+    Shows actual physical stock (from inventory_ledger RECEIVED - DELIVERED)
+    This is still needed so admins can see the raw number.
+    Color: > 50 = green, 10-50 = amber, < 10 = red + ⚠️
+
+Final table columns (left to right):
+  Crop Name | To Receive (KG) | To Deliver (KG) | In Warehouse (KG) | Needed
+
+UPDATE BACKEND GET /api/inventory/summary to return in_warehouse separately:
+  in_warehouse: actual ledger-based stock (RECEIVED - DELIVERED from inventory_ledger)
+  to_receive: from pending SUPPLY orders (ORDER_RECEIVED + DISPATCHED_TO_COLLECT)
+  to_deliver: from pending DEMAND orders (ORDER_RECEIVED + DISPATCHED)
+  needed: computed as to_deliver - in_warehouse (can be returned from backend 
+          or computed on frontend — either is fine)
+
+ADD SEARCH BAR to Stock Summary table:
+  Place above the table in both AdminInventory.tsx and AdminDashboard.tsx widget:
+  
+  <div className="relative mb-4">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 
+                       text-kb-muted w-4 h-4" />
+    <input
+      type="text"
+      placeholder={lang === 'np' ? "उपज खोज्नुहोस्..." : "Search crop..."}
+      value={stockSearch}
+      onChange={e => setStockSearch(e.target.value)}
+      className="w-full pl-9 pr-4 py-2 border border-kb-border 
+                 rounded-input text-sm focus:outline-none 
+                 focus:border-kb-forest focus:ring-2 focus:ring-kb-forest/20"
+    />
+  </div>
+  
+  Filter: const filtered = summary.filter(item =>
+    item.crop_name.toLowerCase().includes(stockSearch.toLowerCase()) ||
+    item.crop_name_np.includes(stockSearch)
+  );
+
+LOW STOCK ALERT: trigger when in_warehouse < 10 (not needed value).
+
+═══════════════════════════════════
+FIX 7 — IMAGE UPLOAD IN CATALOG (REPLACE URL INPUT)
+═══════════════════════════════════
+
+BACKEND — Add file upload support:
+
+Install multer: already add to server/package.json dependencies.
+
+In server/src/index.ts:
+  import express from 'express';
+  Serve static files: app.use('/uploads', express.static('uploads'));
+  Create uploads directory if it doesn't exist:
+    import fs from 'fs';
+    if (!fs.existsSync('uploads')) fs.mkdirSync('uploads');
+
+Create server/src/middleware/upload.ts:
+  import multer from 'multer';
+  import path from 'path';
+  import { v4 as uuidv4 } from 'uuid';
+  
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, 'uploads/'),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `${uuidv4()}${ext}`);
+    }
+  });
+  
+  export const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+    fileFilter: (_req, file, cb) => {
+      const allowed = ['image/jpeg','image/jpg','image/png','image/webp'];
+      if (allowed.includes(file.mimetype)) cb(null, true);
+      else cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+    }
+  });
+
+Add new route POST /api/catalog/upload-image in server/src/routes/catalog.ts:
+  import { upload } from '../middleware/upload';
+  
+  router.post('/upload-image', verifyToken, requireAdmin, 
+    upload.single('image'), (req, res) => {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      const imageUrl = `/uploads/${req.file.filename}`;
+      res.json({ imageUrl });
+    }
+  );
+
+Update POST /api/catalog to accept image_url as a regular text field 
+(the URL is now set from the upload endpoint, not entered manually).
+
+FRONTEND — AdminCatalog.tsx image upload UI:
+
+Replace the "Image URL (optional)" text input with:
+
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+
+  Image upload section in the form:
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-kb-text mb-1">
+      {lang === 'np' ? 'उत्पाद फोटो' : 'Product Image'}
+      <span className="text-kb-muted font-normal ml-1">
+        ({lang === 'np' ? 'वैकल्पिक' : 'Optional'})
+      </span>
+    </label>
+    
+    {/* Preview box */}
+    <div className="flex items-start gap-4">
+      <div className="w-20 h-20 rounded-card border-2 border-dashed 
+                      border-kb-border bg-kb-cream flex items-center 
+                      justify-center overflow-hidden flex-shrink-0">
+        {imagePreview ? (
+          <img src={imagePreview} alt="preview" 
+               className="w-full h-full object-cover" />
+        ) : (
+          <ImageIcon className="w-8 h-8 text-kb-muted" />
+        )}
+      </div>
+      
+      <div className="flex-1">
+        <input
+          type="file"
+          accept="image/jpeg,image/jpg,image/png,image/webp"
+          className="hidden"
+          id="catalog-image-upload"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              setImageFile(file);
+              setImagePreview(URL.createObjectURL(file));
+            }
+          }}
+        />
+        <label htmlFor="catalog-image-upload"
+          className="inline-flex items-center gap-2 px-4 py-2 
+                     border border-kb-border rounded-input text-sm 
+                     text-kb-text bg-white hover:bg-kb-cream 
+                     cursor-pointer transition-colors">
+          <Upload className="w-4 h-4" />
+          {lang === 'np' ? 'फोटो अपलोड गर्नुहोस्' : 'Upload Image'}
+        </label>
+        {imageFile && (
+          <p className="text-xs text-kb-muted mt-1">
+            {imageFile.name} ({(imageFile.size / 1024).toFixed(0)} KB)
+          </p>
+        )}
+        {imageFile && (
+          <button type="button" onClick={() => {
+            setImageFile(null); 
+            setImagePreview('');
+          }}
+            className="text-xs text-red-500 mt-1 flex items-center gap-1">
+            <X className="w-3 h-3" />
+            {lang === 'np' ? 'हटाउनुहोस्' : 'Remove'}
+          </button>
+        )}
+        <p className="text-xs text-kb-muted mt-1">
+          {lang === 'np' 
+            ? 'JPEG, PNG वा WebP • अधिकतम 5MB' 
+            : 'JPEG, PNG or WebP • Max 5MB'}
+        </p>
+      </div>
+    </div>
+  </div>
+
+On form submit (handleAddItem):
+  If imageFile exists:
+    1. const formData = new FormData();
+       formData.append('image', imageFile);
+    2. POST /api/catalog/upload-image with formData 
+       (Content-Type: multipart/form-data — do NOT set manually, let Axios set it)
+    3. Get imageUrl from response
+    4. Then POST /api/catalog with { crop_name, crop_name_np, category, 
+                                     image_url: imageUrl, is_available }
+  Else:
+    POST /api/catalog without image_url (or with image_url: null)
+
+SHOW IMAGES in Farmer and Wholesaler catalog grids:
+  In FarmerPlaceOrder.tsx and WholesalerPlaceOrder.tsx, 
+  each product card currently shows a placeholder.
+  
+  Update each catalog card to show:
+  <div className="w-12 h-12 rounded-lg overflow-hidden 
+                  bg-kb-forest/10 flex items-center justify-center 
+                  flex-shrink-0">
+    {item.image_url ? (
+      <img 
+        src={`http://localhost:3001${item.image_url}`} 
+        alt={item.crop_name}
+        className="w-full h-full object-cover"
+        onError={(e) => {
+          (e.target as HTMLImageElement).style.display = 'none';
+        }}
+      />
+    ) : (
+      <span className="text-kb-forest font-bold text-lg">
+        {item.crop_name.charAt(0)}
+      </span>
+    )}
+  </div>
+  
+  Same in AdminCatalog.tsx existing catalog grid — show image_url with fallback.
+
+═══════════════════════════════════
+FIX 8 — "SEE MORE" PAGINATION EVERYWHERE
+═══════════════════════════════════
+Add a universal "See More" / "थप हेर्नुहोस्" expand button to all 
+lists that can have many items. Use a consistent pattern:
+
+Create client/src/hooks/usePagination.ts:
+  export function usePagination<T>(items: T[], initialCount = 5) {
+    const [showAll, setShowAll] = useState(false);
+    const visible = showAll ? items : items.slice(0, initialCount);
+    const hasMore = items.length > initialCount;
+    const remaining = items.length - initialCount;
+    return { visible, hasMore, showAll, setShowAll, remaining };
+  }
+
+Apply usePagination to these lists with initialCount:
+
+  FarmerMyOrders.tsx — orders list, initialCount=5:
+    Show first 5 orders, then "See More (X more)" button
+
+  WholesalerMyOrders.tsx — orders list, initialCount=5:
+    Same pattern
+
+  AdminOrders.tsx — each tab's table, initialCount=10:
+    "See More" link below the table
+
+  AdminUsers.tsx — users table, initialCount=10
+  
+  AdminInventory.tsx Recent Transactions — initialCount=5
+
+  AdminCatalog.tsx — catalog grid, initialCount=8 (2 columns × 4 rows)
+
+"See More" button UI (use consistently everywhere):
+  <button onClick={() => setShowAll(true)}
+    className="w-full mt-3 py-2.5 border border-kb-border rounded-card 
+               text-sm text-kb-muted hover:text-kb-forest 
+               hover:border-kb-forest/50 hover:bg-kb-forest/5
+               transition-all flex items-center justify-center gap-2">
+    <ChevronDown className="w-4 h-4" />
+    {lang === 'np' 
+      ? `थप हेर्नुहोस् (${remaining} थप)` 
+      : `See More (${remaining} more)`}
+  </button>
+
+"See Less" button (shown when expanded, only if more than initialCount):
+  <button onClick={() => setShowAll(false)}
+    className="w-full mt-3 py-2.5 text-sm text-kb-muted 
+               hover:text-kb-forest transition-colors
+               flex items-center justify-center gap-2">
+    <ChevronUp className="w-4 h-4" />
+    {lang === 'np' ? 'कम देखाउनुहोस्' : 'See Less'}
+  </button>
+
+ADD SEARCH ICON to section headers throughout the app:
+  Any section that has a list of items and does NOT already have a 
+  search bar should have a small search icon button in the header 
+  that toggles an inline search input:
+  
+  Create client/src/components/ui/SearchToggle.tsx:
+    Props: onSearch: (q: string) => void, placeholder: string
+    State: isOpen (false by default), query ('')
+    Render:
+      When closed: 
+        <button onClick={() => setIsOpen(true)} 
+          className="p-2 rounded-input hover:bg-kb-cream text-kb-muted 
+                     hover:text-kb-forest transition-colors">
+          <Search className="w-4 h-4" />
+        </button>
+      When open:
+        Animated expand (transition width from 0 to 200px):
+        <div className="flex items-center gap-2 bg-white border 
+                        border-kb-border rounded-input px-3 py-1.5">
+          <Search className="w-3.5 h-3.5 text-kb-muted flex-shrink-0" />
+          <input autoFocus type="text" value={query}
+            onChange={e => { setQuery(e.target.value); onSearch(e.target.value); }}
+            className="text-sm outline-none w-40"
+            placeholder={placeholder} />
+          <button onClick={() => { setIsOpen(false); setQuery(''); onSearch(''); }}>
+            <X className="w-3.5 h-3.5 text-kb-muted" />
+          </button>
+        </div>
+  
+  Apply SearchToggle to these section headers:
+    FarmerMyOrders header row
+    WholesalerMyOrders header row
+    AdminUsers table header
+    AdminCatalog catalog grid header
+
+═══════════════════════════════════
+I18N ADDITIONS — ADD TO BOTH en.json AND np.json
+═══════════════════════════════════
+en.json:
+"common": {
+  "seeMore": "See More",
+  "seeLess": "See Less",
+  "moreItems": "{{count}} more",
+  "search": "Search",
+  "searchPlaceholder": "Search...",
+  "uploadImage": "Upload Image",
+  "imageOptional": "Product Image (Optional)",
+  "removeImage": "Remove",
+  "cancelOrder": "Cancel Order",
+  "cancelConfirm": "Cancel this order?",
+  "keepOrder": "Keep Order",
+  "yesCancel": "Yes, Cancel",
+  "orderCancelled": "Order cancelled successfully",
+  "cannotCancel": "Order cannot be cancelled at this stage",
+  "needed": "Needed",
+  "inWarehouse": "In Warehouse",
+  "balanced": "Balanced",
+  "stockShortfall": "Stock shortfall",
+  "stockSurplus": "Surplus stock"
+}
+
+np.json:
+"common": {
+  "seeMore": "थप हेर्नुहोस्",
+  "seeLess": "कम देखाउनुहोस्",
+  "moreItems": "{{count}} थप",
+  "search": "खोज्नुहोस्",
+  "searchPlaceholder": "खोज्नुहोस्...",
+  "uploadImage": "फोटो अपलोड गर्नुहोस्",
+  "imageOptional": "उत्पाद फोटो (वैकल्पिक)",
+  "removeImage": "हटाउनुहोस्",
+  "cancelOrder": "अर्डर रद्द गर्नुहोस्",
+  "cancelConfirm": "यो अर्डर रद्द गर्ने?",
+  "keepOrder": "राख्नुहोस्",
+  "yesCancel": "हो, रद्द गर्नुहोस्",
+  "orderCancelled": "अर्डर सफलतापूर्वक रद्द गरियो",
+  "cannotCancel": "यस चरणमा अर्डर रद्द गर्न सकिँदैन",
+  "needed": "आवश्यक",
+  "inWarehouse": "भण्डारमा",
+  "balanced": "सन्तुलित",
+  "stockShortfall": "स्टक कमी",
+  "stockSurplus": "अतिरिक्त स्टक"
+}
+
+═══════════════════════════════════
+TECHNICAL RULES
+═══════════════════════════════════
+1. Read every file before modifying it
+2. Use React Router <NavLink> and <Link> for ALL navigation — 
+   never window.location.href or <a href> for internal routes
+3. The <Outlet /> in layout files is non-negotiable — routes will 404 without it
+4. Image upload endpoint must use multipart/form-data — 
+   do NOT set Content-Type header manually in Axios for file uploads
+5. The "Needed" calculation: positive = shortfall (bad), negative = surplus (good)
+6. All new components must use useTranslation for every text string
+7. Cancel order must validate on the BACKEND — do not rely only on 
+   hiding the button on the frontend
+8. After all changes: verify both server and client start without errors
+9. Test routing by navigating directly to /farmer/place-order in the URL bar

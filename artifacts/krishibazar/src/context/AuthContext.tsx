@@ -8,6 +8,7 @@ interface AuthContextType {
   login: (data: UserLogin) => Promise<void>;
   register: (data: UserRegistration) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | null>(null);
@@ -23,25 +24,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchMe = async (storedToken: string) => {
+    const res = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${storedToken}` }
+    });
+    if (res.ok) {
+      const userData = await res.json();
+      setUser(userData);
+      return true;
+    }
+    return false;
+  };
+
   useEffect(() => {
     const initAuth = async () => {
       const storedToken = localStorage.getItem('kb_token');
-      if (!storedToken) {
-        setLoading(false);
-        return;
-      }
-      
+      if (!storedToken) { setLoading(false); return; }
       try {
-        const res = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${storedToken}` }
-        });
-        if (res.ok) {
-          const userData = await res.json();
-          setUser(userData);
-          setToken(storedToken);
-        } else {
-          localStorage.removeItem('kb_token');
-        }
+        const ok = await fetchMe(storedToken);
+        if (ok) setToken(storedToken);
+        else localStorage.removeItem('kb_token');
       } catch (err) {
         console.error(err);
       } finally {
@@ -57,9 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) {
-      throw new Error("Login failed");
-    }
+    if (!res.ok) throw new Error("Login failed");
     const result: AuthResponse = await res.json();
     localStorage.setItem('kb_token', result.token);
     setToken(result.token);
@@ -72,9 +72,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
     });
-    if (!res.ok) {
-      throw new Error("Registration failed");
-    }
+    if (!res.ok) throw new Error("Registration failed");
     const result: AuthResponse = await res.json();
     localStorage.setItem('kb_token', result.token);
     setToken(result.token);
@@ -88,8 +86,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     window.location.href = '/';
   };
 
+  const refreshUser = async () => {
+    const stored = localStorage.getItem('kb_token');
+    if (!stored) return;
+    await fetchMe(stored);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLocation } from 'wouter';
 import { BSDatePicker } from '@/components/ui/BSDatePicker';
 import { formatBSDate } from '@/lib/bs-calendar';
-import { CheckCircle, Copy } from 'lucide-react';
+import { CheckCircle, Copy, Search, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Step = 1 | 2 | 3 | 4;
@@ -17,26 +17,33 @@ export default function FarmerPlaceOrder() {
 
   const [step, setStep] = useState<Step>(1);
   const [catalog, setCatalog] = useState<any[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedCrop, setSelectedCrop] = useState<any>(null);
   const [weightKg, setWeightKg] = useState('');
   const [pickupDate, setPickupDate] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
   const [successOrder, setSuccessOrder] = useState<any>(null);
 
-  const loadCatalog = async () => {
-    if (catalog.length) return;
-    setCatalogLoading(true);
-    try {
-      const res = await fetch('/api/catalog', { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setCatalog((data || []).filter((c: any) => c.is_available));
-    } finally {
-      setCatalogLoading(false);
-    }
-  };
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      setCatalogLoading(true);
+      try {
+        const res = await fetch('/api/catalog', { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        setCatalog((data || []).filter((c: any) => c.is_available));
+      } finally {
+        setCatalogLoading(false);
+      }
+    };
+    fetchCatalog();
+  }, []);
 
-  useEffect(() => { loadCatalog(); }, []);
+  const filteredCatalog = catalog.filter((item) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return item.crop_name.toLowerCase().includes(q) || item.crop_name_np.includes(q);
+  });
 
   const handlePlaceOrder = async () => {
     if (!selectedCrop || !weightKg || !pickupDate) return;
@@ -80,8 +87,8 @@ export default function FarmerPlaceOrder() {
         >
           {t('orders.viewMyOrders')}
         </button>
-        <button onClick={() => setSuccessOrder(null)} className="text-kb-muted text-sm underline">
-          Place another order
+        <button onClick={() => { setSuccessOrder(null); setStep(1); setSelectedCrop(null); setWeightKg(''); setPickupDate(null); }} className="text-kb-muted text-sm underline">
+          {lang === 'np' ? 'अर्को अर्डर राख्नुहोस्' : 'Place another order'}
         </button>
       </div>
     );
@@ -102,23 +109,54 @@ export default function FarmerPlaceOrder() {
         <div>
           <h2 className="text-[16px] font-bold text-kb-text mb-1">{t('orders.whatAreSelling')}</h2>
           <p className="text-[13px] text-kb-muted mb-4">{t('orders.selectProduce')}</p>
+
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-kb-muted w-4 h-4" />
+            <input
+              type="text"
+              placeholder={lang === 'np' ? 'उपज खोज्नुहोस्...' : 'Search produce...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-kb-border rounded-xl bg-white text-sm focus:outline-none focus:border-kb-forest focus:ring-2 focus:ring-kb-forest/20"
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-kb-muted">
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
           {catalogLoading ? (
             <div className="grid grid-cols-2 gap-3">
-              {[...Array(6)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl animate-pulse" />)}
+              {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-white rounded-xl animate-pulse" />)}
+            </div>
+          ) : filteredCatalog.length === 0 ? (
+            <div className="col-span-2 text-center py-8 text-kb-muted">
+              <Search className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">{lang === 'np' ? 'कुनै वस्तु फेला परेन' : 'No items found'}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
-              {catalog.map((crop) => (
+              {filteredCatalog.map((crop) => (
                 <button
                   key={crop.id}
                   onClick={() => setSelectedCrop(crop)}
                   className={['relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
                     selectedCrop?.id === crop.id ? 'border-kb-forest bg-kb-forest/5 shadow-md' : 'border-kb-border bg-white'].join(' ')}
                 >
-                  <div className="w-12 h-12 bg-kb-forest/10 rounded-full flex items-center justify-center text-[20px] font-bold text-kb-forest">
-                    {(lang === 'np' ? crop.crop_name_np : crop.crop_name).charAt(0)}
+                  <div className="w-12 h-12 rounded-lg overflow-hidden bg-kb-forest/10 flex items-center justify-center flex-shrink-0">
+                    {crop.image_url ? (
+                      <img
+                        src={crop.image_url}
+                        alt={crop.crop_name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    ) : (
+                      <span className="text-kb-forest font-bold text-lg">{crop.crop_name.charAt(0)}</span>
+                    )}
                   </div>
-                  <span className="text-[13px] font-semibold text-kb-text">
+                  <span className="text-[13px] font-semibold text-kb-text text-center">
                     {lang === 'np' ? crop.crop_name_np : crop.crop_name}
                   </span>
                   {selectedCrop?.id === crop.id && (

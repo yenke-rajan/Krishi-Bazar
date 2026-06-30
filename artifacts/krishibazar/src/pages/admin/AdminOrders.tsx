@@ -4,12 +4,26 @@ import { useAuth } from '@/context/AuthContext';
 import { useInventory } from '@/context/InventoryContext';
 import { AdminLayout } from './AdminLayout';
 import { formatBSDate } from '@/lib/bs-calendar';
+import { Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
+import { usePagination } from '@/hooks/usePagination';
 
 type LayerFilter = 'SUPPLY' | 'DEMAND';
 
-const SUPPLY_STATUSES = ['ORDER_RECEIVED', 'DISPATCHED_TO_COLLECT', 'COLLECTED'];
-const DEMAND_STATUSES = ['ORDER_RECEIVED', 'DISPATCHED', 'DELIVERED'];
+const SUPPLY_CHAIN = ['ORDER_RECEIVED', 'DISPATCHED_TO_COLLECT', 'COLLECTED'];
+const DEMAND_CHAIN = ['ORDER_RECEIVED', 'DISPATCHED', 'DELIVERED'];
+
+function isTerminal(layerType: string, status: string) {
+  return (layerType === 'SUPPLY' && status === 'COLLECTED') ||
+    (layerType === 'DEMAND' && status === 'DELIVERED');
+}
+
+function getForwardOptions(layerType: string, status: string): string[] {
+  const chain = layerType === 'SUPPLY' ? SUPPLY_CHAIN : DEMAND_CHAIN;
+  const idx = chain.indexOf(status);
+  if (idx === -1) return [status];
+  return chain.slice(idx);
+}
 
 function StatusBadge({ status }: { status: string }) {
   const cls: Record<string, string> = {
@@ -62,13 +76,15 @@ export default function AdminOrders() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const d = await res.json();
+        toast.error(d.error || t('errors.serverError'));
+        return;
+      }
       const data = await res.json();
       toast.success(t('admin.statusUpdated'));
       if (data.inventoryUpdated) {
-        toast.info(lang === 'np' ? '📦 भण्डार स्वचालित रूपमा अपडेट गरियो' : '📦 Inventory automatically updated', {
-          duration: 4000,
-        });
+        toast.info(lang === 'np' ? '📦 भण्डार स्वचालित रूपमा अपडेट गरियो' : '📦 Inventory automatically updated', { duration: 4000 });
         bumpInventory();
       }
       setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status } : o));
@@ -91,7 +107,7 @@ export default function AdminOrders() {
       );
     });
 
-  const statuses = tab === 'SUPPLY' ? SUPPLY_STATUSES : DEMAND_STATUSES;
+  const { visible, hasMore, showAll, setShowAll, remaining } = usePagination(filtered, 10);
 
   return (
     <AdminLayout>
@@ -129,7 +145,6 @@ export default function AdminOrders() {
                 <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">Order ID</th>
                 <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('common.name')}</th>
                 <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('common.phone')}</th>
-                <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('common.location')}</th>
                 <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('orders.crop')}</th>
                 <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('common.kg')}</th>
                 <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase tracking-wide whitespace-nowrap">{t('common.date')}</th>
@@ -141,12 +156,12 @@ export default function AdminOrders() {
               {loading ? (
                 [...Array(5)].map((_, i) => (
                   <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
-                    {[...Array(9)].map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-kb-cream rounded animate-pulse" /></td>)}
+                    {[...Array(8)].map((_, j) => <td key={j} className="px-4 py-3"><div className="h-4 bg-kb-cream rounded animate-pulse" /></td>)}
                   </tr>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-14 text-center">
+                  <td colSpan={8} className="px-4 py-14 text-center">
                     <div className="flex flex-col items-center gap-2 text-kb-muted">
                       <span className="text-3xl">📋</span>
                       <p className="text-[13px]">{t('orders.noOrders')}</p>
@@ -154,39 +169,68 @@ export default function AdminOrders() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((o, i) => (
-                  <tr key={o.id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <span className="font-mono font-bold text-kb-forest text-[12px] tracking-wide">{o.order_id}</span>
-                    </td>
-                    <td className="px-4 py-3 font-medium text-kb-text whitespace-nowrap">{o.client_name || '—'}</td>
-                    <td className="px-4 py-3 text-kb-muted whitespace-nowrap">{o.client_phone || '—'}</td>
-                    <td className="px-4 py-3 text-kb-muted whitespace-nowrap max-w-[120px] truncate">{o.client_address || '—'}</td>
-                    <td className="px-4 py-3 text-kb-text whitespace-nowrap">{lang === 'np' ? o.crop_name_np : o.crop_name}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-kb-text">{o.weight_kg}</td>
-                    <td className="px-4 py-3 text-kb-muted whitespace-nowrap">{o.target_date_bs ? formatBSDate(o.target_date_bs, lang) : '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
-                    <td className="px-4 py-3">
-                      <div className="relative">
+                visible.map((o, i) => {
+                  const terminal = isTerminal(o.layer_type, o.status);
+                  const options = getForwardOptions(o.layer_type, o.status);
+                  return (
+                    <tr key={o.id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <span className="font-mono font-bold text-kb-forest text-[12px] tracking-wide">{o.order_id}</span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-kb-text whitespace-nowrap">{o.client_name || '—'}</td>
+                      <td className="px-4 py-3 text-kb-muted whitespace-nowrap">{o.client_phone || '—'}</td>
+                      <td className="px-4 py-3 text-kb-text whitespace-nowrap">{lang === 'np' ? o.crop_name_np : o.crop_name}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-kb-text">{o.weight_kg}</td>
+                      <td className="px-4 py-3 text-kb-muted whitespace-nowrap">{o.target_date_bs ? formatBSDate(o.target_date_bs, lang) : '—'}</td>
+                      <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                      <td className="px-4 py-3">
                         {updating === o.id ? (
                           <div className="w-5 h-5 border-2 border-kb-forest border-t-transparent rounded-full animate-spin" />
+                        ) : terminal ? (
+                          <div className="flex items-center gap-1 text-green-600 text-[11px] font-medium">
+                            <Lock className="w-3 h-3" />
+                            <span>{lang === 'np' ? 'पूर्ण' : 'Complete'}</span>
+                          </div>
                         ) : (
                           <select
                             value={o.status}
                             onChange={(e) => handleStatusChange(o.id, e.target.value)}
                             className="text-[12px] border border-kb-border rounded-lg px-2 py-1.5 bg-white outline-none focus:border-kb-forest cursor-pointer"
                           >
-                            {statuses.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                            {options.map((s) => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
                           </select>
                         )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
+
+        {hasMore && !showAll && (
+          <div className="px-4 py-3 border-t border-kb-border">
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full py-2 border border-kb-border rounded-xl text-sm text-kb-muted hover:text-kb-forest hover:border-kb-forest/50 hover:bg-kb-forest/5 transition-all flex items-center justify-center gap-2"
+            >
+              <ChevronDown className="w-4 h-4" />
+              {lang === 'np' ? `थप हेर्नुहोस् (${remaining} थप)` : `See More (${remaining} more)`}
+            </button>
+          </div>
+        )}
+        {showAll && hasMore && (
+          <div className="px-4 py-3 border-t border-kb-border">
+            <button
+              onClick={() => setShowAll(false)}
+              className="w-full py-2 text-sm text-kb-muted hover:text-kb-forest transition-colors flex items-center justify-center gap-2"
+            >
+              <ChevronUp className="w-4 h-4" />
+              {lang === 'np' ? 'कम देखाउनुहोस्' : 'See Less'}
+            </button>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );

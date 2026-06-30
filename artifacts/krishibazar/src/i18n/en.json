@@ -71,7 +71,8 @@
     "location": "Location",
     "role": "Role",
     "joined": "Joined",
-    "notes": "Notes (Optional)"
+    "notes": "Notes (Optional)",
+    "cannotCancel": "Cannot cancel this order"
   },
   "roles": {
     "FARMER": "Farmer",

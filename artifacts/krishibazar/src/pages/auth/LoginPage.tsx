@@ -82,7 +82,6 @@ export default function LoginPage() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">{t('auth.password')}</Label>
-            <span className="text-[11px] text-kb-muted">(Coming soon)</span>
           </div>
           <div className="relative">
             <Input 
