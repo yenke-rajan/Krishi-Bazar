@@ -1,0 +1,447 @@
+This is the final phase for KrishiBazar. Read all relevant files first.
+Add PWA support, production build config, error boundaries, 
+and final UI polish. Do not break existing features.
+
+═══════════════════════════════════
+STEP 0 — READ FIRST
+═══════════════════════════════════
+Read these files before writing anything:
+  client/index.html
+  client/vite.config.ts
+  client/package.json
+  client/src/App.tsx
+  client/src/main.tsx
+  client/public/ (list what exists)
+  server/src/index.ts
+  package.json (root)
+
+═══════════════════════════════════
+PART 1 — PWA MANIFEST & SERVICE WORKER
+═══════════════════════════════════
+Install vite-plugin-pwa in client:
+  pnpm add -D vite-plugin-pwa --prefix client
+
+Update client/vite.config.ts to add VitePWA plugin:
+
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { VitePWA } from 'vite-plugin-pwa';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico', 'icons/*.png'],
+      manifest: {
+        name: 'KrishiBazar — कृषिबजार',
+        short_name: 'KrishiBazar',
+        description: "Nepal's Fresh Produce Marketplace",
+        theme_color: '#0D3B2E',
+        background_color: '#F4F8F0',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          {
+            src: '/icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any maskable'
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts-cache',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 }
+            }
+          },
+          {
+            urlPattern: /\/api\/catalog/,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-catalog-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 }
+            }
+          }
+        ]
+      }
+    })
+  ],
+  server: {
+    proxy: {
+      '/api': 'http://localhost:3001',
+      '/uploads': 'http://localhost:3001'
+    }
+  }
+});
+
+Create client/public/icons/ directory.
+Generate two PNG icons programmatically using a script or canvas:
+  Create client/scripts/generate-icons.mjs:
+  
+  import { createCanvas } from 'canvas';
+  import fs from 'fs';
+  import path from 'path';
+  
+  // If canvas isn't available, create placeholder green PNGs instead
+  // using a simple Buffer approach
+  
+  const sizes = [192, 512];
+  const dir = 'client/public/icons';
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  
+  sizes.forEach(size => {
+    try {
+      const canvas = createCanvas(size, size);
+      const ctx = canvas.getContext('2d');
+      
+      // Background circle
+      ctx.fillStyle = '#0D3B2E';
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Letter K in white
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `bold ${size * 0.45}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('K', size/2, size/2);
+      
+      // Marigold dot
+      ctx.fillStyle = '#F5A623';
+      ctx.beginPath();
+      ctx.arc(size * 0.68, size * 0.32, size * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+      
+      fs.writeFileSync(
+        path.join(dir, `icon-${size}.png`), 
+        canvas.toBuffer('image/png')
+      );
+      console.log(`Generated icon-${size}.png`);
+    } catch(e) {
+      // Fallback: write a minimal valid PNG as placeholder
+      console.log(`Canvas not available, skipping icon-${size}.png`);
+    }
+  });
+
+Add to client/package.json scripts:
+  "generate-icons": "node scripts/generate-icons.mjs"
+
+Run: pnpm --prefix client run generate-icons
+If canvas fails, manually create solid green 192×192 and 512×512 
+PNG files using ImageMagick if available:
+  convert -size 192x192 xc:#0D3B2E client/public/icons/icon-192.png
+  convert -size 512x512 xc:#0D3B2E client/public/icons/icon-512.png
+
+Update client/index.html <head>:
+  <meta name="theme-color" content="#0D3B2E" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KrishiBazar" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, 
+        maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+═══════════════════════════════════
+PART 2 — ERROR BOUNDARIES
+═══════════════════════════════════
+Create client/src/components/ui/ErrorBoundary.tsx:
+
+import { Component, ReactNode } from 'react';
+
+interface Props { children: ReactNode; fallback?: ReactNode; }
+interface State { hasError: boolean; error: Error | null; }
+
+export class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: any) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="min-h-screen bg-kb-cream flex items-center 
+                        justify-center p-6">
+          <div className="bg-white rounded-card shadow-card p-8 
+                          max-w-sm w-full text-center">
+            <div className="text-4xl mb-4">🌿</div>
+            <h2 className="text-lg font-bold text-kb-text mb-2">
+              Something went wrong
+            </h2>
+            <p className="text-sm text-kb-muted mb-6">
+              {this.state.error?.message || 'An unexpected error occurred'}
+            </p>
+            <button
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-gradient-to-r from-kb-deep 
+                         to-kb-forest text-white rounded-pill 
+                         font-semibold text-sm">
+              Reload Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+Wrap the entire app in App.tsx:
+  import { ErrorBoundary } from './components/ui/ErrorBoundary';
+  
+  // In the return:
+  <ErrorBoundary>
+    <Router>
+      {/* existing routes */}
+    </Router>
+  </ErrorBoundary>
+
+Also wrap each major page section with a local ErrorBoundary:
+  In FarmerLayout.tsx, WholesalerLayout.tsx, and AdminLayout.tsx:
+  Wrap <Outlet /> with <ErrorBoundary> so one broken page
+  doesn't crash the whole app.
+
+═══════════════════════════════════
+PART 3 — PRODUCTION BUILD CONFIG
+═══════════════════════════════════
+Update root package.json scripts:
+
+{
+  "scripts": {
+    "dev": "concurrently \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "start": "npm --prefix server run start",
+    "preview": "npm --prefix client run preview"
+  }
+}
+
+Update client/vite.config.ts to add build options:
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          i18n: ['i18next', 'react-i18next'],
+        }
+      }
+    }
+  }
+
+Update server package.json to add a production start script:
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc --outDir dist",
+    "start": "node dist/index.js"
+  }
+
+Update server/src/index.ts to serve the client build in production:
+
+  import path from 'path';
+  
+  // After all API routes, add:
+  if (process.env.NODE_ENV === 'production') {
+    const clientDist = path.join(__dirname, '../../client/dist');
+    app.use(express.static(clientDist));
+    // Serve index.html for all non-API routes (SPA fallback)
+    app.get('*', (req, res) => {
+      // Don't intercept API routes
+      if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
+
+Create server/.env.example:
+  JWT_SECRET=change_this_to_a_secure_random_string_in_production
+  PORT=3001
+  NODE_ENV=development
+  DATABASE_URL=./krishibazar.db
+
+Create a root .env.example:
+  # Copy to .env and fill in values
+  NODE_ENV=production
+  PORT=3001
+  JWT_SECRET=your_secure_jwt_secret_here
+
+═══════════════════════════════════
+PART 4 — FINAL UI POLISH
+═══════════════════════════════════
+
+A) App-wide loading screen on auth hydration:
+  In client/src/App.tsx, while AuthContext is checking localStorage
+  and calling /api/auth/me, show a full-screen splash:
+  
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-hero flex flex-col 
+                      items-center justify-center gap-4">
+        <div className="text-white text-center">
+          <div className="text-5xl mb-4">🌿</div>
+          <h1 className="text-2xl font-bold font-display">KrishiBazar</h1>
+          <p className="text-white/70 text-sm mt-1">कृषिबजार</p>
+        </div>
+        <div className="w-8 h-8 border-2 border-white/30 border-t-white 
+                        rounded-full animate-spin mt-4" />
+      </div>
+    );
+  }
+
+B) Toast notification system:
+  If not already present, install react-hot-toast:
+    pnpm add react-hot-toast --prefix client
+  
+  In main.tsx or App.tsx, add:
+    import { Toaster } from 'react-hot-toast';
+    // Inside JSX:
+    <Toaster 
+      position="top-center"
+      toastOptions={{
+        duration: 3000,
+        style: { 
+          borderRadius: '12px',
+          fontFamily: 'Plus Jakarta Sans, sans-serif',
+          fontSize: '14px'
+        },
+        success: { 
+          style: { background: '#F0FDF4', color: '#15803D', 
+                   border: '1px solid #BBF7D0' } 
+        },
+        error: { 
+          style: { background: '#FEF2F2', color: '#DC2626',
+                   border: '1px solid #FECACA' } 
+        }
+      }}
+    />
+  
+  Replace any existing toast calls to use react-hot-toast:
+    import toast from 'react-hot-toast';
+    toast.success('Message');
+    toast.error('Message');
+
+C) Mobile safe area padding:
+  In FarmerLayout.tsx and WholesalerLayout.tsx, update the bottom nav:
+    className="... pb-[env(safe-area-inset-bottom)]"
+  
+  This ensures the bottom nav doesn't overlap the iPhone home indicator.
+
+D) Page transition animation:
+  Add to client/src/index.css:
+  
+  @keyframes pageSlideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  
+  .page-enter {
+    animation: pageSlideIn 0.2s ease-out forwards;
+  }
+
+  Add className="page-enter" to the outermost div of:
+    FarmerPlaceOrder, FarmerMyOrders, WholesalerPlaceOrder, 
+    WholesalerMyOrders, UserProfile, AdminDashboard, AdminOrders,
+    AdminInventory, AdminUsers, AdminCatalog
+
+E) Network error handling in api.ts:
+  In client/src/lib/api.ts, update the response interceptor:
+
+  api.interceptors.response.use(
+    response => response,
+    error => {
+      if (!error.response) {
+        // Network error — no response from server
+        toast.error('Cannot connect to server. Check your connection.');
+        return Promise.reject(error);
+      }
+      if (error.response.status === 401) {
+        localStorage.removeItem('kb_token');
+        window.location.href = '/';
+        return Promise.reject(error);
+      }
+      return Promise.reject(error);
+    }
+  );
+
+F) Confirm the BS Calendar is working correctly:
+  In client/src/lib/bs-calendar.ts, verify the file exists and exports:
+    get7DayBSWindow(): BSDate[]
+    formatBSDate(dateStr, lang): string
+  
+  In BSDatePicker.tsx, verify it imports from bs-calendar and renders
+  7 date chips correctly. If BSDatePicker.tsx is missing or broken,
+  recreate it from scratch using the spec in previous prompts.
+  
+  Test: open /farmer/place-order, go to Step 3. Should see 7 date chips
+  with Nepali month names when language is set to NP.
+
+G) README.md — create at project root:
+
+# KrishiBazar (कृषिबजार)
+Nepal's Fresh Produce Marketplace — connecting farmers and wholesalers.
+
+## Quick Start
+\`\`\`bash
+npm install
+npm run dev
+\`\`\`
+Opens on:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:3001
+
+## Default Accounts
+| Role | Phone | Password |
+|------|-------|----------|
+| Admin | 9800000000 | Admin@123 |
+
+## Tech Stack
+- Frontend: React 18 + TypeScript + Vite + Tailwind CSS
+- Backend: Express.js + better-sqlite3
+- Auth: JWT + bcrypt
+- i18n: react-i18next (English + Nepali)
+
+## Features
+- 🌾 Farmer module: list produce, BS calendar scheduling, order tracking
+- 🏪 Wholesaler module: place bulk orders, delivery scheduling
+- 🖥️ Admin panel: order management, inventory tracking, catalog CRUD
+- 🇳🇵 Full Nepali language support (Devanagari)
+- 📱 PWA — installable on mobile from browser
+
+═══════════════════════════════════
+TECHNICAL RULES
+═══════════════════════════════════
+1. Read every file before modifying
+2. Do not break existing working features
+3. vite-plugin-pwa requires Vite 4+ — verify version compatibility
+4. The production SPA fallback in server must NOT intercept /api/ routes
+5. If canvas package is unavailable for icon generation, use ImageMagick 
+   or create simple solid-color PNG placeholders — do not block the build
+6. After all changes: run npm run build from root and confirm it 
+   completes without errors
+7. Test the production build: NODE_ENV=production npm run start
+   then open http://localhost:3001 — the full app should serve from there

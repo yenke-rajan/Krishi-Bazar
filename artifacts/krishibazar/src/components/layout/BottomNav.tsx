@@ -18,13 +18,14 @@ export function BottomNav({ role }: BottomNavProps) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-kb-border h-16 flex items-center">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-kb-border flex items-center"
+         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = location === tab.path || location.startsWith(tab.path);
         return (
-          <Link key={tab.path} href={tab.path} className="flex-1 flex flex-col items-center py-2 px-1 gap-0.5 relative">
-            <Icon className={['w-5 h-5 transition-colors', isActive ? 'text-kb-forest' : 'text-kb-muted'].join(' ')} />
+          <Link key={tab.path} href={tab.path} className="flex-1 flex flex-col items-center py-2 px-1 gap-0.5 relative h-16">
+            <Icon className={['w-5 h-5 transition-colors mt-1', isActive ? 'text-kb-forest' : 'text-kb-muted'].join(' ')} />
             <span className={['text-[10px] font-medium transition-colors', isActive ? 'text-kb-forest' : 'text-kb-muted'].join(' ')}>
               {tab.label}
             </span>

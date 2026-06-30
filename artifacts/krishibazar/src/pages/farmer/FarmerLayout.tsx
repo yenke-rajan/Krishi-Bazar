@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { Leaf, LogOut } from 'lucide-react';
 
 export function FarmerLayout({ children }: { children: ReactNode }) {
@@ -38,7 +39,9 @@ export function FarmerLayout({ children }: { children: ReactNode }) {
         </p>
       </div>
 
-      <div className="px-4 py-4">{children}</div>
+      <div className="px-4 py-4 page-enter">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </div>
 
       <BottomNav role="FARMER" />
     </div>

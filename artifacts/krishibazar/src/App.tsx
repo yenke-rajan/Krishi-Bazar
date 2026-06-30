@@ -3,10 +3,11 @@ import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { InventoryProvider } from "@/context/InventoryContext";
 import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 import LoginPage from "@/pages/auth/LoginPage";
 import RegisterPage from "@/pages/auth/RegisterPage";
@@ -125,6 +126,32 @@ function Router() {
   );
 }
 
+function AppContent() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4"
+           style={{ background: 'linear-gradient(135deg, #0D3B2E 0%, #2E7D52 100%)' }}>
+        <div className="text-white text-center">
+          <div className="text-5xl mb-4">🌿</div>
+          <h1 className="text-2xl font-bold">KrishiBazar</h1>
+          <p className="text-white/70 text-sm mt-1">कृषिबजार</p>
+        </div>
+        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mt-4" />
+      </div>
+    );
+  }
+
+  return (
+    <ErrorBoundary>
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <Router />
+      </WouterRouter>
+    </ErrorBoundary>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -132,9 +159,7 @@ function App() {
         <AuthProvider>
           <InventoryProvider>
             <LanguageProvider>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <Router />
-              </WouterRouter>
+              <AppContent />
               <Toaster position="top-right" duration={3000} richColors />
             </LanguageProvider>
           </InventoryProvider>

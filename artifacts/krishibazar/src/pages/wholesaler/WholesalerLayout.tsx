@@ -3,10 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { ShoppingCart, LogOut } from 'lucide-react';
 
 export function WholesalerLayout({ children }: { children: ReactNode }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
 
   return (
@@ -37,7 +38,9 @@ export function WholesalerLayout({ children }: { children: ReactNode }) {
         </p>
       </div>
 
-      <div className="px-4 py-4">{children}</div>
+      <div className="px-4 py-4 page-enter">
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </div>
 
       <BottomNav role="WHOLESALER" />
     </div>

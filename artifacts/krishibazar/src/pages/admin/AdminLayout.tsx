@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { useViewportGuard } from '@/hooks/useViewportGuard';
 import { LayoutDashboard, PackageOpen, BarChart3, Users, Leaf, LogOut, Menu, Monitor } from 'lucide-react';
 
@@ -117,8 +118,8 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <div className="w-9" />
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 page-enter">
+          <ErrorBoundary>{children}</ErrorBoundary>
         </main>
       </div>
     </div>
