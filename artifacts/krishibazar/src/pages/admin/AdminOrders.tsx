@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/context/AuthContext';
 import { useInventory } from '@/context/InventoryContext';
 import { AdminLayout } from './AdminLayout';
-import { formatBSDate } from '@/lib/bs-calendar';
+import { formatBSDate, get7DayBSWindow } from '@/lib/bs-calendar';
 import { Lock, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePagination } from '@/hooks/usePagination';
@@ -49,10 +49,13 @@ export default function AdminOrders() {
   const { bumpInventory } = useInventory();
   const lang = i18n.language as 'en' | 'np';
 
+  const todayBS = get7DayBSWindow()[0].dateStringBS;
+
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<LayerFilter>('SUPPLY');
   const [search, setSearch] = useState('');
+  const [dateFilter, setDateFilter] = useState<string>(todayBS);
   const [updating, setUpdating] = useState<string | null>(null);
 
   const loadOrders = async () => {
@@ -97,6 +100,7 @@ export default function AdminOrders() {
 
   const filtered = orders
     .filter((o) => o.layer_type === tab)
+    .filter((o) => !dateFilter || o.target_date_bs === dateFilter)
     .filter((o) => {
       if (!search) return true;
       const q = search.toLowerCase();
@@ -120,6 +124,29 @@ export default function AdminOrders() {
           placeholder={t('common.search')}
           className="px-3 py-2 text-[13px] bg-white border border-kb-border rounded-xl outline-none focus:border-kb-forest w-48"
         />
+      </div>
+
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-[12px] text-kb-muted font-semibold uppercase tracking-wide">Date:</span>
+        <button
+          onClick={() => setDateFilter(todayBS)}
+          className={['px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all',
+            dateFilter === todayBS ? 'bg-kb-forest text-white border-kb-forest' : 'bg-white text-kb-muted border-kb-border hover:border-kb-forest'].join(' ')}
+        >
+          Today ({formatBSDate(todayBS, lang)})
+        </button>
+        <button
+          onClick={() => setDateFilter('')}
+          className={['px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all',
+            dateFilter === '' ? 'bg-kb-forest text-white border-kb-forest' : 'bg-white text-kb-muted border-kb-border hover:border-kb-forest'].join(' ')}
+        >
+          All Dates
+        </button>
+        {dateFilter && dateFilter !== todayBS && (
+          <span className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+            {formatBSDate(dateFilter, lang)}
+          </span>
+        )}
       </div>
 
       <div className="flex bg-white border border-kb-border rounded-xl p-1 gap-1 mb-4 w-fit">

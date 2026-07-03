@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "KrishiBazar",
+    "name": "Fresh Tarkari",
     "tagline": "Nepal's Fresh Produce Marketplace",
     "subtitle": "Connecting Farmers & Wholesalers"
   },
@@ -18,13 +18,13 @@
     "loginTitle": "Welcome Back",
     "loginSubtitle": "Sign in to your account",
     "registerTitle": "Create Account",
-    "registerSubtitle": "Join the KrishiBazar network",
+    "registerSubtitle": "Join the Fresh Tarkari network",
     "noAccount": "Don't have an account?",
     "haveAccount": "Already have an account?",
     "signUp": "Sign Up",
     "signIn": "Sign In",
     "selectRole": "I am a...",
-    "roleHint": "Choose how you will use KrishiBazar",
+    "roleHint": "Choose how you will use Fresh Tarkari",
     "farmer": "Farmer",
     "farmerDesc": "I grow & sell produce",
     "wholesaler": "Wholesaler",
@@ -146,7 +146,7 @@
     "addNewItem": "Add New Item",
     "addToCatalog": "Add to Catalog",
     "desktopRequired": "Admin Panel requires a desktop browser",
-    "desktopRequiredDesc": "Please open KrishiBazar Admin on a computer with a screen wider than 768px.",
+    "desktopRequiredDesc": "Please open Fresh Tarkari Admin on a computer with a screen wider than 768px.",
     "availableToUsers": "Available to users",
     "imageUrl": "Image URL (optional)",
     "availability": "Availability",

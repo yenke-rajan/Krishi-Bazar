@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { LanguageToggle } from '@/components/ui/LanguageToggle';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { Leaf, LogOut } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 
 export function FarmerLayout({ children }: { children: ReactNode }) {
   const { t, i18n } = useTranslation();
@@ -15,9 +15,7 @@ export function FarmerLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-kb-cream pb-20">
       <div className="sticky top-0 z-40 bg-white border-b border-kb-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-kb-forest rounded-lg flex items-center justify-center">
-            <Leaf className="w-4 h-4 text-white" />
-          </div>
+          <img src="/logo.png" alt="Fresh Tarkari" className="w-7 h-7 rounded-lg object-contain" />
           <div>
             <p className="text-[13px] font-bold text-kb-text leading-none">{t('app.name')}</p>
             <p className="text-[10px] text-kb-muted leading-none">{t('roles.FARMER')}</p>

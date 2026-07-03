@@ -1,6 +1,6 @@
-# KrishiBazar (कृषिबजार)
+# Fresh Tarkari (ताजा तरकारी)
 
-Nepal's full-stack Agritech Marketplace — connecting farmers and wholesalers for fresh produce trade.
+Nepal's full-stack Agritech Marketplace — connecting farmers and wholesalers for fresh produce trade. Previously branded as KrishiBazar.
 
 ## Run & Operate
 

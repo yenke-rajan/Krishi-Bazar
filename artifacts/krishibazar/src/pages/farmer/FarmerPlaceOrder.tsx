@@ -31,7 +31,7 @@ export default function FarmerPlaceOrder() {
       try {
         const res = await fetch('/api/catalog', { headers: { Authorization: `Bearer ${token}` } });
         const data = await res.json();
-        setCatalog((data || []).filter((c: any) => c.is_available));
+        setCatalog((data || []).filter((c: any) => c.is_available && c.category !== 'PICKLE'));
       } finally {
         setCatalogLoading(false);
       }

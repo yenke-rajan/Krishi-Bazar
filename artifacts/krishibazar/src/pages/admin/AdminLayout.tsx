@@ -30,7 +30,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     <div className="flex flex-col h-full">
       <div className="px-5 py-6 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-kb-marigold rounded-lg flex items-center justify-center font-bold text-white text-sm">K</div>
+          <img src="/logo.png" alt="Fresh Tarkari" className="w-8 h-8 rounded-lg object-contain shrink-0" />
           <div>
             <p className="text-white font-bold text-[14px] leading-none">{t('app.name')}</p>
             <p className="text-white/50 text-[11px] leading-none mt-0.5">{t('admin.adminPanel')}</p>

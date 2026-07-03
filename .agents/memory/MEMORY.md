@@ -1,0 +1,2 @@
+- [Zod null vs undefined](zod-null-vs-undefined.md) — `zod.string().optional()` rejects `null`; send `undefined` (omit key) instead when field has no value.
+- [App branding](app-branding.md) — App rebranded from KrishiBazar to Fresh Tarkari; logo at `public/logo.png`; all layouts use `t('app.name')` except App.tsx loading screen (hardcoded).

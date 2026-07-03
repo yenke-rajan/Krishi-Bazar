@@ -218,6 +218,9 @@ export default function AdminInventory() {
                     <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('inventory.lastUpdated')}</th>
                   </tr>
                 </thead>
+                <colgroup>
+                  <col /><col /><col /><col className="bg-green-50/30" /><col /><col />
+                </colgroup>
                 <tbody>
                   {loading ? (
                     [...Array(5)].map((_, i) => (
@@ -254,6 +257,25 @@ export default function AdminInventory() {
                     ))
                   )}
                 </tbody>
+                {!loading && filteredSummary.length > 0 && (
+                  <tfoot>
+                    <tr className="border-t-2 border-kb-border bg-kb-cream/60">
+                      <td className="px-4 py-3 font-bold text-kb-text text-[12px] uppercase tracking-wide">
+                        {lang === 'np' ? 'जम्मा' : 'Total'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-kb-muted text-[13px]">
+                        {filteredSummary.reduce((s, r) => s + (r.to_receive || 0), 0)} KG
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-kb-muted text-[13px]">
+                        {filteredSummary.reduce((s, r) => s + (r.to_deliver || 0), 0)} KG
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-green-700 text-[14px]">
+                        {filteredSummary.reduce((s, r) => s + (r.in_warehouse || 0), 0)} KG
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>

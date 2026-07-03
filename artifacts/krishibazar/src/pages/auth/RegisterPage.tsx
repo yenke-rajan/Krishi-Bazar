@@ -80,7 +80,11 @@ export default function RegisterPage() {
         role: role!
       });
       toast.success("Account created successfully!");
-      setLocation('/dashboard');
+      if (role === UserRegistrationRole.FARMER) {
+        setLocation('/farmer');
+      } else {
+        setLocation('/wholesaler');
+      }
     } catch (err: any) {
       setError(t('errors.registerFailed'));
     } finally {

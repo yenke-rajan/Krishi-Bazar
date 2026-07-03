@@ -37,8 +37,8 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons/*.png"],
       manifest: {
-        name: "KrishiBazar — कृषिबजार",
-        short_name: "KrishiBazar",
+        name: "Fresh Tarkari — ताजा तरकारी",
+        short_name: "Fresh Tarkari",
         description: "Nepal's Fresh Produce Marketplace",
         theme_color: "#0D3B2E",
         background_color: "#F4F8F0",

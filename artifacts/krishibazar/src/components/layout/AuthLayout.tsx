@@ -1,8 +1,6 @@
 import { ReactNode } from 'react';
 import { LanguageToggle } from '../ui/LanguageToggle';
 import { useTranslation } from 'react-i18next';
-import { Leaf } from 'lucide-react';
-
 export function AuthLayout({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
 
@@ -24,10 +22,8 @@ export function AuthLayout({ children }: { children: ReactNode }) {
 
         {/* Content */}
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-          <div className="w-[52px] h-[52px] bg-white rounded-xl shadow-lg flex items-center justify-center relative mb-4">
-             <Leaf className="w-8 h-8 text-kb-forest absolute" />
-             <span className="text-kb-deep font-bold text-xl relative z-10">K</span>
-             <div className="w-3 h-3 bg-kb-marigold rounded-full absolute -top-1 -right-1 shadow-sm"></div>
+          <div className="mb-4">
+            <img src="/logo.png" alt="Fresh Tarkari" className="w-[72px] h-[72px] rounded-2xl shadow-lg object-contain" />
           </div>
           <h1 className="text-white font-bold text-[28px] tracking-tight">{t('app.name')}</h1>
           <p className="text-white/75 text-[13px] mt-1 font-medium">{t('app.tagline')}</p>

@@ -104,7 +104,7 @@ export default function AdminCatalog() {
       const res = await fetch('/api/catalog', {
         method: 'POST',
         headers: { ...h, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, image_url }),
+        body: JSON.stringify({ ...form, ...(image_url !== null ? { image_url } : {}) }),
       });
       if (!res.ok) throw new Error('Failed');
       toast.success(lang === 'np' ? 'बाली थपियो' : 'Item added to catalog');

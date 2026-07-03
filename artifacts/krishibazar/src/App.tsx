@@ -134,9 +134,9 @@ function AppContent() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4"
            style={{ background: 'linear-gradient(135deg, #0D3B2E 0%, #2E7D52 100%)' }}>
         <div className="text-white text-center">
-          <div className="text-5xl mb-4">🌿</div>
-          <h1 className="text-2xl font-bold">KrishiBazar</h1>
-          <p className="text-white/70 text-sm mt-1">कृषिबजार</p>
+          <img src="/logo.png" alt="Fresh Tarkari" className="w-20 h-20 rounded-2xl mb-4 object-contain mx-auto" />
+          <h1 className="text-2xl font-bold">Fresh Tarkari</h1>
+          <p className="text-white/70 text-sm mt-1">ताजा तरकारी</p>
         </div>
         <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin mt-4" />
       </div>

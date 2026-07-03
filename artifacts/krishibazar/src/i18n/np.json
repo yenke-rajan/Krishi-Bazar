@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "कृषिबजार",
+    "name": "Fresh Tarkari",
     "tagline": "नेपालको ताजा उपज बजार",
     "subtitle": "किसान र थोक व्यापारीलाई जोड्दै"
   },
@@ -18,13 +18,13 @@
     "loginTitle": "फेरि स्वागत छ",
     "loginSubtitle": "आफ्नो खातामा साइन इन गर्नुहोस्",
     "registerTitle": "खाता बनाउनुहोस्",
-    "registerSubtitle": "कृषिबजार नेटवर्कमा सामेल हुनुहोस्",
+    "registerSubtitle": "Fresh Tarkari नेटवर्कमा सामेल हुनुहोस्",
     "noAccount": "खाता छैन?",
     "haveAccount": "पहिले नै खाता छ?",
     "signUp": "साइन अप",
     "signIn": "साइन इन",
     "selectRole": "म हुँ एक...",
-    "roleHint": "तपाईं कृषिबजार कसरी प्रयोग गर्नुहुन्छ?",
+    "roleHint": "तपाईं Fresh Tarkari कसरी प्रयोग गर्नुहुन्छ?",
     "farmer": "किसान",
     "farmerDesc": "म उपज उगाउँछु र बेच्छु",
     "wholesaler": "थोक व्यापारी",
@@ -146,7 +146,7 @@
     "addNewItem": "नयाँ वस्तु थप्नुहोस्",
     "addToCatalog": "सूचीमा थप्नुहोस्",
     "desktopRequired": "एडमिन प्यानलका लागि डेस्कटप ब्राउजर चाहिन्छ",
-    "desktopRequiredDesc": "कृपया ७६८px भन्दा फराकिलो स्क्रिनमा KrishiBazar एडमिन खोल्नुहोस्।",
+    "desktopRequiredDesc": "कृपया ७६८px भन्दा फराकिलो स्क्रिनमा Fresh Tarkari एडमिन खोल्नुहोस्।",
     "availableToUsers": "प्रयोगकर्ताका लागि उपलब्ध",
     "imageUrl": "तस्विर URL (वैकल्पिक)",
     "availability": "उपलब्धता",

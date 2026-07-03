@@ -35,10 +35,8 @@ export default function DashboardPage() {
         {/* Header */}
         <header className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-2 text-kb-deep font-bold text-xl tracking-tight">
-            <div className="w-8 h-8 bg-kb-forest rounded-lg flex items-center justify-center">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
-            KrishiBazar
+            <img src="/logo.png" alt="Fresh Tarkari" className="w-8 h-8 rounded-lg object-contain" />
+            {t('app.name')}
           </div>
           <LanguageToggle className="bg-kb-border/50 text-kb-deep" />
         </header>
