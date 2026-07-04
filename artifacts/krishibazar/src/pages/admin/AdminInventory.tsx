@@ -148,15 +148,19 @@ export default function AdminInventory() {
           <p className="text-kb-muted text-[13px]">{lang === 'np' ? 'डाटा उपलब्ध छैन' : 'No data available'}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
-            {summary.map((s) => (
-              <div
-                key={s.crop_id}
-                className={`px-4 py-2.5 rounded-xl border text-center min-w-[90px] ${chipStyle(s.in_warehouse)}`}
-              >
-                <p className="text-[13px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
-                <p className="text-[15px] font-extrabold mt-0.5">{s.in_warehouse} <span className="text-[11px] font-semibold">KG</span></p>
-              </div>
-            ))}
+            {summary.filter((s) => s.in_warehouse > 0).length === 0 ? (
+              <p className="text-kb-muted text-[13px]">{lang === 'np' ? 'कुनै स्टक उपलब्ध छैन' : 'No stock currently available'}</p>
+            ) : (
+              summary.filter((s) => s.in_warehouse > 0).map((s) => (
+                <div
+                  key={s.crop_id}
+                  className={`px-4 py-2.5 rounded-xl border text-center min-w-[90px] ${chipStyle(s.in_warehouse)}`}
+                >
+                  <p className="text-[13px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
+                  <p className="text-[15px] font-extrabold mt-0.5">{s.in_warehouse} <span className="text-[11px] font-semibold">KG</span></p>
+                </div>
+              ))
+            )}
           </div>
         )}
       </div>
