@@ -227,7 +227,7 @@ All category='VEGETABLE', is_available=1, id=uuidv4()
 
 Admin user (seed only if no ADMIN exists):
   phone: '9800000000'
-  password: 'Admin@123' (bcrypt hash with saltRounds=10)
+  password: configured in backend initialization (bcrypt hash with saltRounds=10)
   full_name: 'KrishiBazar Admin'
   role: 'ADMIN'
 

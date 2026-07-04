@@ -84,7 +84,7 @@ pnpm --filter @workspace/db run push
 
 This creates all tables and seeds:
 - 8 vegetables (Tomato, Potato, Onion, Cabbage, Cauliflower, Spinach, Cucumber, Carrot)
-- Admin user — phone: `9800000000`, password: `Admin@123`
+- Admin user — phone: `9800000000` (seeded automatically if missing; password is configured in backend initialization)
 
 ### 4. Start development servers
 

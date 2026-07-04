@@ -53,8 +53,9 @@ Nepal's full-stack Agritech Marketplace — connecting farmers and wholesalers f
 
 ## Seed data
 
-- Admin: phone `9800000000`, password `Admin@123`
+- Admin: phone `9800000000`, password is seeded from the backend initialization and should be changed after first login
 - 8 vegetables in catalog: Tomato, Potato, Onion, Cabbage, Cauliflower, Spinach, Cucumber, Carrot (with Nepali names)
+- Admin user — phone: `9800000000` (seeded automatically if missing; password is configured in backend initialization)
 
 ## User preferences
 

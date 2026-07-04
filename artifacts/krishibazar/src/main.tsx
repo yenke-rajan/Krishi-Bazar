@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").trim();
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "https://krishi-bazar-f6vc.onrender.com").trim();
 
 if (apiBaseUrl) {
   const normalizedBaseUrl = apiBaseUrl.replace(/\/+$/, "");

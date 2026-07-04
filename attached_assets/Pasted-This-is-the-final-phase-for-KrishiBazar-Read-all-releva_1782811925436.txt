@@ -417,7 +417,7 @@ Opens on:
 ## Default Accounts
 | Role | Phone | Password |
 |------|-------|----------|
-| Admin | 9800000000 | Admin@123 |
+| Admin | 9800000000 | configured in backend initialization |
 
 ## Tech Stack
 - Frontend: React 18 + TypeScript + Vite + Tailwind CSS
