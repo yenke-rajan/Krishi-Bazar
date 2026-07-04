@@ -49,7 +49,10 @@ export default function AdminOrders() {
   const { bumpInventory } = useInventory();
   const lang = i18n.language as 'en' | 'np';
 
-  const todayBS = get7DayBSWindow()[0].dateStringBS;
+  const bsWindow = get7DayBSWindow();
+  const todayBS   = bsWindow[0].dateStringBS;
+  const tomorrowBS = bsWindow[1].dateStringBS;
+  const dayAfterBS = bsWindow[2].dateStringBS;
 
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,26 +130,26 @@ export default function AdminOrders() {
       </div>
 
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-[12px] text-kb-muted font-semibold uppercase tracking-wide">Date:</span>
-        <button
-          onClick={() => setDateFilter(todayBS)}
-          className={['px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all',
-            dateFilter === todayBS ? 'bg-kb-forest text-white border-kb-forest' : 'bg-white text-kb-muted border-kb-border hover:border-kb-forest'].join(' ')}
-        >
-          Today ({formatBSDate(todayBS, lang)})
-        </button>
-        <button
-          onClick={() => setDateFilter('')}
-          className={['px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all',
-            dateFilter === '' ? 'bg-kb-forest text-white border-kb-forest' : 'bg-white text-kb-muted border-kb-border hover:border-kb-forest'].join(' ')}
-        >
-          All Dates
-        </button>
-        {dateFilter && dateFilter !== todayBS && (
-          <span className="px-3 py-1.5 rounded-full text-[12px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-            {formatBSDate(dateFilter, lang)}
-          </span>
-        )}
+        <span className="text-[12px] text-kb-muted font-semibold uppercase tracking-wide">{t('common.date')}:</span>
+        {([
+          { bs: todayBS,    labelEn: 'Today',              labelNp: 'आज' },
+          { bs: tomorrowBS, labelEn: 'Tomorrow',           labelNp: 'भोलि' },
+          { bs: dayAfterBS, labelEn: 'Day After Tomorrow', labelNp: 'पर्सि' },
+          { bs: '',         labelEn: 'All Dates',          labelNp: 'सबै मिति' },
+        ] as const).map(({ bs, labelEn, labelNp }) => {
+          const active = dateFilter === bs;
+          const label = lang === 'np' ? labelNp : labelEn;
+          return (
+            <button
+              key={bs || 'all'}
+              onClick={() => setDateFilter(bs)}
+              className={['px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all',
+                active ? 'bg-kb-forest text-white border-kb-forest' : 'bg-white text-kb-muted border-kb-border hover:border-kb-forest'].join(' ')}
+            >
+              {label}{bs ? ` (${formatBSDate(bs, lang)})` : ''}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex bg-white border border-kb-border rounded-xl p-1 gap-1 mb-4 w-fit">

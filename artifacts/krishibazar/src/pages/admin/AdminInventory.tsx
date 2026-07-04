@@ -22,20 +22,21 @@ function relativeTime(ts: number, lang: 'en' | 'np'): string {
   return lang === 'np' ? `${d} दिन अघि` : `${d} days ago`;
 }
 
-function NeededCell({ needed, lang }: { needed: number; lang: 'en' | 'np' }) {
-  if (needed === 0) {
+function AvailableCell({ inWarehouse, toDeliver, lang }: { inWarehouse: number; toDeliver: number; lang: 'en' | 'np' }) {
+  const surplus = inWarehouse - toDeliver;
+  if (surplus === 0) {
     return <span className="text-kb-muted text-[12px]">{lang === 'np' ? 'सन्तुलित' : 'Balanced'}</span>;
   }
-  if (needed > 0) {
+  if (surplus > 0) {
     return (
-      <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
-        ⚠️ +{needed} KG
+      <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
+        +{surplus} KG
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-green-600 bg-green-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
-      {needed} KG
+    <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 text-[12px] font-semibold px-2 py-0.5 rounded-full">
+      ⚠️ {surplus} KG
     </span>
   );
 }
@@ -121,9 +122,44 @@ export default function AdminInventory() {
   const warehouseColor = (n: number) =>
     n > 50 ? 'text-green-600' : n >= 10 ? 'text-amber-600' : 'text-red-600';
 
+  const chipStyle = (n: number) =>
+    n > 50
+      ? 'bg-green-50 border-green-200 text-green-700'
+      : n >= 10
+      ? 'bg-amber-50 border-amber-200 text-amber-700'
+      : 'bg-red-50 border-red-200 text-red-700';
+
   return (
     <AdminLayout>
       <h1 className="text-[20px] font-bold text-kb-text mb-5">{t('admin.inventory')}</h1>
+
+      {/* Available Stock Overview — top section */}
+      <div className="bg-white rounded-xl border border-kb-border p-4 mb-5">
+        <h2 className="text-[14px] font-bold text-kb-text mb-3">
+          {lang === 'np' ? 'उपलब्ध स्टक' : 'Available Stock'}
+        </h2>
+        {loading ? (
+          <div className="flex flex-wrap gap-2">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="h-14 w-28 bg-kb-cream rounded-xl animate-pulse" />
+            ))}
+          </div>
+        ) : summary.length === 0 ? (
+          <p className="text-kb-muted text-[13px]">{lang === 'np' ? 'डाटा उपलब्ध छैन' : 'No data available'}</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {summary.map((s) => (
+              <div
+                key={s.crop_id}
+                className={`px-4 py-2.5 rounded-xl border text-center min-w-[90px] ${chipStyle(s.in_warehouse)}`}
+              >
+                <p className="text-[13px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
+                <p className="text-[15px] font-extrabold mt-0.5">{s.in_warehouse} <span className="text-[11px] font-semibold">KG</span></p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-5">
         {/* Manual Adjustment form */}
@@ -211,16 +247,21 @@ export default function AdminInventory() {
                 <thead>
                   <tr className="bg-kb-cream/60 border-b border-kb-border">
                     <th className="text-left px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('inventory.cropName')}</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">To Receive</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">To Deliver</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">In Warehouse</th>
-                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">Needed</th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">
+                      {lang === 'np' ? 'प्राप्त हुने' : 'To Receive'}
+                    </th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">
+                      {lang === 'np' ? 'डेलिभर हुने' : 'To Deliver'}
+                    </th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">
+                      {lang === 'np' ? 'भण्डारमा' : 'In Warehouse'}
+                    </th>
+                    <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase whitespace-nowrap">
+                      {lang === 'np' ? 'उपलब्ध' : 'Available'}
+                    </th>
                     <th className="text-right px-4 py-3 font-semibold text-kb-muted text-[11px] uppercase">{t('inventory.lastUpdated')}</th>
                   </tr>
                 </thead>
-                <colgroup>
-                  <col /><col /><col /><col className="bg-green-50/30" /><col /><col />
-                </colgroup>
                 <tbody>
                   {loading ? (
                     [...Array(5)].map((_, i) => (
@@ -229,7 +270,9 @@ export default function AdminInventory() {
                       </tr>
                     ))
                   ) : filteredSummary.length === 0 ? (
-                    <tr><td colSpan={6} className="px-4 py-8 text-center text-kb-muted">No inventory data</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-8 text-center text-kb-muted">
+                      {lang === 'np' ? 'भण्डार डाटा छैन' : 'No inventory data'}
+                    </td></tr>
                   ) : (
                     filteredSummary.map((s, i) => (
                       <tr key={s.crop_id} className={i % 2 === 0 ? 'bg-white' : 'bg-kb-cream/30'}>
@@ -241,7 +284,7 @@ export default function AdminInventory() {
                           {s.in_warehouse} KG
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <NeededCell needed={s.needed} lang={lang} />
+                          <AvailableCell inWarehouse={s.in_warehouse} toDeliver={s.to_deliver} lang={lang} />
                         </td>
                         <td className="px-4 py-3 text-right text-[11px] text-kb-muted whitespace-nowrap">
                           {s.last_updated ? (
@@ -257,25 +300,6 @@ export default function AdminInventory() {
                     ))
                   )}
                 </tbody>
-                {!loading && filteredSummary.length > 0 && (
-                  <tfoot>
-                    <tr className="border-t-2 border-kb-border bg-kb-cream/60">
-                      <td className="px-4 py-3 font-bold text-kb-text text-[12px] uppercase tracking-wide">
-                        {lang === 'np' ? 'जम्मा' : 'Total'}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-kb-muted text-[13px]">
-                        {filteredSummary.reduce((s, r) => s + (r.to_receive || 0), 0)} KG
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-kb-muted text-[13px]">
-                        {filteredSummary.reduce((s, r) => s + (r.to_deliver || 0), 0)} KG
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-green-700 text-[14px]">
-                        {filteredSummary.reduce((s, r) => s + (r.in_warehouse || 0), 0)} KG
-                      </td>
-                      <td colSpan={2} />
-                    </tr>
-                  </tfoot>
-                )}
               </table>
             </div>
           </div>
@@ -299,14 +323,18 @@ export default function AdminInventory() {
                 {[...Array(5)].map((_, i) => <div key={i} className="h-10 bg-kb-cream rounded animate-pulse" />)}
               </div>
             ) : history.length === 0 ? (
-              <p className="px-5 py-8 text-center text-kb-muted text-[13px]">No transactions yet</p>
+              <p className="px-5 py-8 text-center text-kb-muted text-[13px]">
+                {lang === 'np' ? 'अहिलेसम्म कुनै लेनदेन छैन' : 'No transactions yet'}
+              </p>
             ) : (
               <>
                 <div className="divide-y divide-kb-border/50">
                   {historyVisible.map((entry) => (
                     <div key={entry.id} className="flex items-center gap-4 px-5 py-3 text-[13px]">
                       <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${entry.tracking_type === 'RECEIVED' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
-                        {entry.tracking_type}
+                        {entry.tracking_type === 'RECEIVED'
+                          ? (lang === 'np' ? 'प्राप्त' : 'RECEIVED')
+                          : (lang === 'np' ? 'डेलिभर' : 'DELIVERED')}
                       </span>
                       <span className="font-medium text-kb-text flex-1 min-w-0 truncate">
                         {lang === 'np' ? entry.crop_name_np : entry.crop_name}
