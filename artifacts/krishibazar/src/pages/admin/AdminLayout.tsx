@@ -71,6 +71,12 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           <LogOut className="w-4 h-4" />
           {t('nav.logout')}
         </button>
+        <p className="text-center text-[10px] text-white/30 pb-1">
+          Developed by{' '}
+          <a href="https://opsagora.com/" target="_blank" rel="noopener noreferrer" className="text-white/50 hover:text-white/80 font-semibold hover:underline transition-colors">
+            OpsAgora
+          </a>
+        </p>
       </div>
     </div>
   );

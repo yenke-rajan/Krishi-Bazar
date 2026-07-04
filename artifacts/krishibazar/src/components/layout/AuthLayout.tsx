@@ -36,6 +36,12 @@ export function AuthLayout({ children }: { children: ReactNode }) {
         <div className="flex-1 flex flex-col">
           {children}
         </div>
+        <p className="text-center text-[11px] text-kb-muted mt-6 shrink-0">
+          Developed by{' '}
+          <a href="https://opsagora.com/" target="_blank" rel="noopener noreferrer" className="text-kb-forest font-semibold hover:underline">
+            OpsAgora
+          </a>
+        </p>
       </div>
     </div>
   );
