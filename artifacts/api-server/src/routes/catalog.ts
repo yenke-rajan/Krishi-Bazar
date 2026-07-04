@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { v4 as uuidv4 } from "uuid";
 import { eq } from "drizzle-orm";
-import { db, catalogTable, ordersTable } from "@workspace/db";
+import { db, catalogTable, inventoryLedgerTable, ordersTable } from "@workspace/db";
 import {
   GetCatalogResponse,
   CreateCatalogItemBody,
@@ -115,6 +115,17 @@ router.delete(
 
     if (existingOrder) {
       res.status(409).json({ error: "Cannot delete — this item has existing orders" });
+      return;
+    }
+
+    const [existingInventory] = await db
+      .select({ id: inventoryLedgerTable.id })
+      .from(inventoryLedgerTable)
+      .where(eq(inventoryLedgerTable.crop_id, rawId))
+      .limit(1);
+
+    if (existingInventory) {
+      res.status(409).json({ error: "Cannot delete — this item has inventory history" });
       return;
     }
 
