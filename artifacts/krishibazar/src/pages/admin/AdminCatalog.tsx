@@ -29,6 +29,34 @@ function ItemImage({ imageUrl, name }: { imageUrl?: string | null; name: string 
   );
 }
 
+/** Compress an image File to a JPEG base64 data URL (max 800px, 80% quality). */
+function compressToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 800;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          if (width > height) { height = Math.round((height * MAX) / width); width = MAX; }
+          else { width = Math.round((width * MAX) / height); height = MAX; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
+      };
+      img.onerror = reject;
+      img.src = e.target!.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function AdminCatalog() {
   const { t, i18n } = useTranslation();
   const { token } = useAuth();
@@ -41,7 +69,6 @@ export default function AdminCatalog() {
   const [form, setForm] = useState({ crop_name: '', crop_name_np: '', category: 'VEGETABLE', is_available: true });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
-  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -79,25 +106,13 @@ export default function AdminCatalog() {
     let image_url: string | null = null;
 
     if (imageFile) {
-      setUploading(true);
       try {
-        const formData = new FormData();
-        formData.append('image', imageFile);
-        const upRes = await fetch('/api/catalog/upload-image', {
-          method: 'POST',
-          headers: h,
-          body: formData,
-        });
-        if (!upRes.ok) throw new Error('Upload failed');
-        const upData = await upRes.json();
-        image_url = upData.imageUrl;
+        image_url = await compressToDataUrl(imageFile);
       } catch {
-        toast.error(lang === 'np' ? 'फोटो अपलोड गर्न असफल' : 'Image upload failed');
+        toast.error(lang === 'np' ? 'फोटो प्रशोधन गर्न असफल' : 'Image processing failed');
         setSubmitting(false);
-        setUploading(false);
         return;
       }
-      setUploading(false);
     }
 
     try {
@@ -224,7 +239,7 @@ export default function AdminCatalog() {
                   <label htmlFor="catalog-image-upload"
                     className="inline-flex items-center gap-2 px-4 py-2 border border-kb-border rounded-xl text-sm text-kb-text bg-white hover:bg-kb-cream cursor-pointer transition-colors">
                     <Upload className="w-4 h-4" />
-                    {lang === 'np' ? 'फोटो अपलोड गर्नुहोस्' : 'Upload Image'}
+                    {lang === 'np' ? 'फोटो छान्नुहोस्' : 'Choose Image'}
                   </label>
                   {imageFile && (
                     <p className="text-xs text-kb-muted mt-1">{imageFile.name} ({(imageFile.size / 1024).toFixed(0)} KB)</p>
@@ -253,9 +268,9 @@ export default function AdminCatalog() {
               </label>
             </div>
           </div>
-          <button type="submit" disabled={submitting || uploading}
+          <button type="submit" disabled={submitting}
             className="w-full bg-kb-forest text-white rounded-xl py-3 font-semibold text-[14px] disabled:opacity-50">
-            {(submitting || uploading) ? t('common.loading') : (lang === 'np' ? 'सूचीमा थप्नुहोस्' : 'Add to Catalog')}
+            {submitting ? t('common.loading') : (lang === 'np' ? 'सूचीमा थप्नुहोस्' : 'Add to Catalog')}
           </button>
         </form>
       </div>
