@@ -65,12 +65,20 @@ export default function AdminUsers() {
     }
   };
 
+  const safeJson = async (res: Response): Promise<any> => {
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { return { error: `Server error (${res.status})` }; }
+  };
+
   const handleDelete = async (id: string) => {
     setDeleting(id);
     try {
       const res = await fetch(`/api/users/${id}`, { method: 'DELETE', headers: h });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
-      toast.success('User deleted');
+      if (!res.ok) {
+        const d = await safeJson(res);
+        throw new Error(d.error || `Failed to delete user (${res.status})`);
+      }
+      toast.success('User deleted successfully');
       setUsers((prev) => prev.filter((u) => u.id !== id));
       setConfirmDelete(null);
     } catch (err: any) {

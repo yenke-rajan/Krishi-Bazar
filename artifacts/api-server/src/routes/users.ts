@@ -1,11 +1,13 @@
 import { Router, type IRouter } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, ordersTable } from "@workspace/db";
 import { verifyToken, requireRole } from "../middlewares/auth";
 
 const router: IRouter = Router();
+
+const ACTIVE_STATUSES = ["ORDER_RECEIVED", "DISPATCHED_TO_COLLECT", "DISPATCHED"] as const;
 
 function toUnixSeconds(): number {
   return Math.floor(Date.now() / 1000);
@@ -101,22 +103,67 @@ router.post("/users", verifyToken, requireRole("ADMIN"), async (req, res): Promi
 });
 
 router.delete("/users/:id", verifyToken, requireRole("ADMIN"), async (req, res): Promise<void> => {
-  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  const adminId = req.user!.id;
+  try {
+    const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const adminId = req.user!.id;
 
-  if (rawId === adminId) {
-    res.status(400).json({ error: "You cannot delete your own account" });
-    return;
+    if (rawId === adminId) {
+      res.status(400).json({ error: "You cannot delete your own account" });
+      return;
+    }
+
+    const [targetUser] = await db.select({ id: usersTable.id, full_name: usersTable.full_name })
+      .from(usersTable)
+      .where(eq(usersTable.id, rawId));
+
+    if (!targetUser) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Check for active (non-terminal) orders
+    const activeOrders = await db
+      .select({ id: ordersTable.id })
+      .from(ordersTable)
+      .where(
+        eq(ordersTable.user_id, rawId)
+      )
+      .then((rows) => rows.filter((r) => ACTIVE_STATUSES.includes((r as any).status)));
+
+    // Re-query with status to properly filter
+    const allUserOrders = await db
+      .select({ id: ordersTable.id, status: ordersTable.status })
+      .from(ordersTable)
+      .where(eq(ordersTable.user_id, rawId));
+
+    const hasActiveOrders = allUserOrders.some((o) =>
+      ACTIVE_STATUSES.includes(o.status as typeof ACTIVE_STATUSES[number])
+    );
+
+    if (hasActiveOrders) {
+      res.status(409).json({
+        error: "Cannot delete this user — they have orders currently in progress. Wait for all their orders to be completed first.",
+      });
+      return;
+    }
+
+    // Delete completed orders first to satisfy the FK constraint
+    if (allUserOrders.length > 0) {
+      await db.delete(ordersTable).where(eq(ordersTable.user_id, rawId));
+    }
+
+    const [deleted] = await db.delete(usersTable).where(eq(usersTable.id, rawId)).returning();
+    if (!deleted) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    req.log.info({ deletedUserId: rawId }, "Admin deleted user");
+    res.json({ message: "User deleted successfully" });
+  } catch (err: any) {
+    req.log.error({ err }, "Failed to delete user");
+    res.status(500).json({ error: "Failed to delete user. Please try again." });
   }
-
-  const [deleted] = await db.delete(usersTable).where(eq(usersTable.id, rawId)).returning();
-  if (!deleted) {
-    res.status(404).json({ error: "User not found" });
-    return;
-  }
-
-  req.log.info({ deletedUserId: rawId }, "Admin deleted user");
-  res.json({ message: "User deleted" });
 });
 
 router.patch("/users/:id/role", verifyToken, requireRole("ADMIN"), async (req, res): Promise<void> => {
