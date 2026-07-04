@@ -133,36 +133,79 @@ export default function AdminInventory() {
     <AdminLayout>
       <h1 className="text-[20px] font-bold text-kb-text mb-5">{t('admin.inventory')}</h1>
 
-      {/* Available Stock Overview — top section */}
-      <div className="bg-white rounded-xl border border-kb-border p-4 mb-5">
-        <h2 className="text-[14px] font-bold text-kb-text mb-3">
-          {lang === 'np' ? 'उपलब्ध स्टक' : 'Available Stock'}
-        </h2>
-        {loading ? (
-          <div className="flex flex-wrap gap-2">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="h-14 w-28 bg-kb-cream rounded-xl animate-pulse" />
-            ))}
-          </div>
-        ) : summary.length === 0 ? (
-          <p className="text-kb-muted text-[13px]">{lang === 'np' ? 'डाटा उपलब्ध छैन' : 'No data available'}</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {summary.filter((s) => s.in_warehouse > 0).length === 0 ? (
-              <p className="text-kb-muted text-[13px]">{lang === 'np' ? 'कुनै स्टक उपलब्ध छैन' : 'No stock currently available'}</p>
-            ) : (
-              summary.filter((s) => s.in_warehouse > 0).map((s) => (
-                <div
-                  key={s.crop_id}
-                  className={`px-4 py-2.5 rounded-xl border text-center min-w-[90px] ${chipStyle(s.in_warehouse)}`}
-                >
-                  <p className="text-[13px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
-                  <p className="text-[15px] font-extrabold mt-0.5">{s.in_warehouse} <span className="text-[11px] font-semibold">KG</span></p>
+      {/* Stock overview panels */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+        {/* Available Stock */}
+        <div className="bg-white rounded-xl border border-kb-border p-4">
+          <h2 className="text-[13px] font-bold text-kb-text mb-3 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
+            {lang === 'np' ? 'उपलब्ध स्टक' : 'Available Stock'}
+          </h2>
+          {loading ? (
+            <div className="flex flex-wrap gap-2">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-14 w-24 bg-kb-cream rounded-xl animate-pulse" />)}
+            </div>
+          ) : summary.filter((s) => s.in_warehouse > 0).length === 0 ? (
+            <p className="text-kb-muted text-[12px]">{lang === 'np' ? 'कुनै स्टक छैन' : 'No stock available'}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {summary.filter((s) => s.in_warehouse > 0).map((s) => (
+                <div key={s.crop_id} className={`px-3 py-2 rounded-xl border text-center min-w-[80px] ${chipStyle(s.in_warehouse)}`}>
+                  <p className="text-[12px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
+                  <p className="text-[14px] font-extrabold mt-0.5">{s.in_warehouse} <span className="text-[10px] font-semibold">KG</span></p>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* To Receive */}
+        <div className="bg-white rounded-xl border border-kb-border p-4">
+          <h2 className="text-[13px] font-bold text-kb-text mb-3 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+            {lang === 'np' ? 'प्राप्त हुने' : 'To Receive'}
+          </h2>
+          {loading ? (
+            <div className="flex flex-wrap gap-2">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-14 w-24 bg-kb-cream rounded-xl animate-pulse" />)}
+            </div>
+          ) : summary.filter((s) => s.to_receive > 0).length === 0 ? (
+            <p className="text-kb-muted text-[12px]">{lang === 'np' ? 'प्राप्त हुने केही छैन' : 'Nothing pending to receive'}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {summary.filter((s) => s.to_receive > 0).map((s) => (
+                <div key={s.crop_id} className="px-3 py-2 rounded-xl border text-center min-w-[80px] bg-blue-50 border-blue-200 text-blue-700">
+                  <p className="text-[12px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
+                  <p className="text-[14px] font-extrabold mt-0.5">{s.to_receive} <span className="text-[10px] font-semibold">KG</span></p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* To Deliver */}
+        <div className="bg-white rounded-xl border border-kb-border p-4">
+          <h2 className="text-[13px] font-bold text-kb-text mb-3 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+            {lang === 'np' ? 'डेलिभर हुने' : 'To Deliver'}
+          </h2>
+          {loading ? (
+            <div className="flex flex-wrap gap-2">
+              {[...Array(4)].map((_, i) => <div key={i} className="h-14 w-24 bg-kb-cream rounded-xl animate-pulse" />)}
+            </div>
+          ) : summary.filter((s) => s.to_deliver > 0).length === 0 ? (
+            <p className="text-kb-muted text-[12px]">{lang === 'np' ? 'डेलिभर हुने केही छैन' : 'Nothing pending to deliver'}</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {summary.filter((s) => s.to_deliver > 0).map((s) => (
+                <div key={s.crop_id} className="px-3 py-2 rounded-xl border text-center min-w-[80px] bg-orange-50 border-orange-200 text-orange-700">
+                  <p className="text-[12px] font-bold leading-tight">{lang === 'np' ? s.crop_name_np : s.crop_name}</p>
+                  <p className="text-[14px] font-extrabold mt-0.5">{s.to_deliver} <span className="text-[10px] font-semibold">KG</span></p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 mb-5">
