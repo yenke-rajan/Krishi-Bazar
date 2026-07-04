@@ -13,13 +13,19 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 const basePath = process.env.BASE_PATH ?? "/";
+const apiProxyTarget =
+  process.env.VITE_API_PROXY_TARGET ??
+  process.env.VITE_API_BASE_URL ??
+  "https://krishi-bazar-f6vc.onrender.com";
 
 export default defineConfig({
   base: basePath,
   plugins: [
     react(),
     tailwindcss(),
-    runtimeErrorOverlay(),
+    ...(process.env.NODE_ENV !== "production"
+      ? [runtimeErrorOverlay()]
+      : []),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.svg", "icons/*.png"],
@@ -114,7 +120,7 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     proxy: {
-      '/api': 'http://localhost:8080',
+      '/api': apiProxyTarget,
     },
     fs: {
       strict: true,
