@@ -3,10 +3,10 @@
   "framework": "vite",
   "buildCommand": "pnpm --filter @workspace/krishibazar run build",
   "outputDirectory": "artifacts/krishibazar/dist/public",
-  "rewrites": [
+  "routes": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
