@@ -47,3 +47,7 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Local environment and uploaded files
+.env
+artifacts/api-server/uploads/

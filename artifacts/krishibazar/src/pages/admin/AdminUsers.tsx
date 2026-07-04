@@ -34,6 +34,15 @@ export default function AdminUsers() {
 
   const h = { Authorization: `Bearer ${token}` };
 
+  const parseResponseError = async (res: Response) => {
+    const contentType = res.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return data.error ?? JSON.stringify(data);
+    }
+    return await res.text();
+  };
+
   const loadUsers = async () => {
     setLoading(true);
     const res = await fetch('/api/users', { headers: h });
@@ -53,7 +62,10 @@ export default function AdminUsers() {
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.error); }
+      if (!res.ok) {
+        const message = await parseResponseError(res);
+        throw new Error(message);
+      }
       toast.success('User added');
       setForm({ phone: '', password: '', full_name: '', email: '', role: 'FARMER', primary_address: '' });
       setShowAddForm(false);
@@ -95,11 +107,14 @@ export default function AdminUsers() {
         headers: { ...h, 'Content-Type': 'application/json' },
         body: JSON.stringify({ role }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const message = await parseResponseError(res);
+        throw new Error(message);
+      }
       toast.success(t('admin.statusUpdated'));
       setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
-    } catch {
-      toast.error(t('errors.serverError'));
+    } catch (err: any) {
+      toast.error(err.message || t('errors.serverError'));
     }
   };
 
