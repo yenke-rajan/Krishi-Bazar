@@ -2,7 +2,7 @@
   "version": 2,
   "framework": "vite",
   "buildCommand": "pnpm --filter @workspace/krishibazar run build",
-  "outputDirectory": "artifacts/krishibazar/dist/public",
+  "outputDirectory": "artifacts/krishibazar/dist/",
   "routes": [
     {
       "src": "/(.*)",
