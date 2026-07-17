@@ -122,19 +122,10 @@ router.delete("/users/:id", verifyToken, requireRole("ADMIN"), async (req, res):
     }
 
     // Check for active (non-terminal) orders
-    const activeOrders = await db
-      .select({ id: ordersTable.id })
-      .from(ordersTable)
-      .where(
-        eq(ordersTable.user_id, rawId)
-      )
-      .then((rows) => rows.filter((r) => ACTIVE_STATUSES.includes((r as any).status)));
-
-    // Re-query with status to properly filter
     const allUserOrders = await db
       .select({ id: ordersTable.id, status: ordersTable.status })
       .from(ordersTable)
-      .where(eq(ordersTable.user_id, rawId));
+      .where(eq(ordersTable.client_id, rawId));
 
     const hasActiveOrders = allUserOrders.some((o) =>
       ACTIVE_STATUSES.includes(o.status as typeof ACTIVE_STATUSES[number])
@@ -149,7 +140,7 @@ router.delete("/users/:id", verifyToken, requireRole("ADMIN"), async (req, res):
 
     // Delete completed orders first to satisfy the FK constraint
     if (allUserOrders.length > 0) {
-      await db.delete(ordersTable).where(eq(ordersTable.user_id, rawId));
+      await db.delete(ordersTable).where(eq(ordersTable.client_id, rawId));
     }
 
     const [deleted] = await db.delete(usersTable).where(eq(usersTable.id, rawId)).returning();
